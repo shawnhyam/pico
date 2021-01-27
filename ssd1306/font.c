@@ -37,12 +37,12 @@
  */
 
 
-#include <cstdint>
+#include <stdint.h>
 
 //#include "ssd1306_fonts.h"
 
 /* Standard ASCII 6x8 font */
-extern "C" const uint8_t ssd1306_font6x8[]=
+extern const uint8_t ssd1306_font6x8[]=
 {
   0x00, 0x06, 0x08, 0x20,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // sp
