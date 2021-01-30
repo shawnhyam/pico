@@ -942,9 +942,23 @@ void place_mountaintop_at(int x, int y) {
     place_metatile_at(x, y+1, 0, (uint8_t[4]){0x26, 0x26, 0x34, 0x26});
     place_metatile_at(x-1, y+1, 0, (uint8_t[4]){0x24, 0x30, 0x30, 0x26});
     place_metatile_at(x+1, y+1, 0, (uint8_t[4]){0x33, 0x26, 0x24, 0x33});
-
-    
 }
+
+// x is the center, y is the top of the mountain (matches y above)
+void place_mountainbase_at(int x, int y) {
+    // mountain left metatile (0x05)
+    place_metatile_at(x-2, y+2, 0, (uint8_t[4]){0x24, 0x30, 0x30, 0x26});
+    // mountain right
+    place_metatile_at(x+2, y+2, 0, (uint8_t[4]){0x33, 0x26, 0x24, 0x33});
+    // 0x06   .db $26, $26, $34, $26 ;mountain left bottom/middle center
+    place_metatile_at(x-1, y+2, 0, (uint8_t[4]){0x26, 0x26, 0x34, 0x26});
+    //  .db $34, $26, $26, $26 ;mountain right bottom
+    place_metatile_at(x+1, y+2, 0, (uint8_t[4]){0x34, 0x26, 0x26, 0x26});
+    // .db $26, $26, $26, $26 ;mountain middle bottom
+    place_metatile_at(x, y+2, 0, (uint8_t[4]){0x26, 0x26, 0x26, 0x26});
+}
+    
+
 
 void place_brick_at(int x, int y) {
     //   .db $45, $47, $45, $47 ;breakable brick w/ line
@@ -960,43 +974,33 @@ void place_question_at(int x, int y, int power_up) {
 
 void place_cloud_at(int x, int y, int width) {
     //   .db $24, $24, $24, $35 ;cloud left
-    set_tile_at(0x24, 2, x, y);
-    set_tile_at(0x24, 2, x+1, y);
-    set_tile_at(0x24, 2, x, y+1);
-    set_tile_at(0x35, 2, x+1, y+1);
+    place_metatile_at(x, y, 2, (uint8_t[4]){0x24, 0x24, 0x24, 0x35});
     
     //   .db $24, $24, $39, $24 ;cloud bottom left
-    set_tile_at(0x24, 2, x, y+2);
-    set_tile_at(0x39, 2, x+1, y+2);
-    set_tile_at(0x24, 2, x, y+3);
-    set_tile_at(0x24, 2, x+1, y+3);
+    place_metatile_at(x, y+1, 2, (uint8_t[4]){0x24, 0x24, 0x39, 0x24});
 
     //   .db $24, $38, $24, $24 ;cloud right
-    set_tile_at(0x24, 2, x+2+width*2, y);
-    set_tile_at(0x24, 2, x+3+width*2, y);
-    set_tile_at(0x38, 2, x+2+width*2, y+1);
-    set_tile_at(0x24, 2, x+3+width*2, y+1);
+    place_metatile_at(x+width+1, y, 2, (uint8_t[4]){0x24, 0x38, 0x24, 0x24});
 
     //   .db $3c, $24, $24, $24 ;cloud bottom right
-    set_tile_at(0x3c, 2, x+2+width*2, y+2);
-    set_tile_at(0x24, 2, x+3+width*2, y+2);
-    set_tile_at(0x24, 2, x+2+width*2, y+3);
-    set_tile_at(0x24, 2, x+3+width*2, y+3);
+    place_metatile_at(x+width+1, y+1, 2, (uint8_t[4]){0x3c, 0x24, 0x24, 0x24});
 
     for (int i=0; i<width; i++) {
         // .db $36, $25, $37, $25 ;cloud middle
-        set_tile_at(0x36, 2, x+2+i*2, y);
-        set_tile_at(0x37, 2, x+3+i*2, y);
-        set_tile_at(0x25, 2, x+2+i*2, y+1);
-        set_tile_at(0x25, 2, x+3+i*2, y+1);
+        place_metatile_at(x+i+1, y, 2, (uint8_t[4]){0x36, 0x25, 0x37, 0x25});
         
         //   .db $3a, $24, $3b, $24 ;cloud bottom middle
-        set_tile_at(0x3a, 2, x+2+i*2, y+2);
-        set_tile_at(0x3b, 2, x+3+i*2, y+2);
-        set_tile_at(0x24, 2, x+2+i*2, y+3);
-        set_tile_at(0x24, 2, x+3+i*2, y+3);
+        place_metatile_at(x+i+1, y+1, 2, (uint8_t[4]){0x3a, 0x24, 0x3b, 0x24});
     }
 
+}
+
+void place_ground_at(int x, int y, int width, int height) {
+    for (int v=0; v<height; v++) {
+        for (int h=0; h<width; h++) {
+            place_metatile_at(x+h, y+v, 1, (uint8_t[4]){0xb4, 0xb6, 0xb5, 0xb7});
+        }
+    }
 }
 
 int main() {
@@ -1126,170 +1130,14 @@ int main() {
     palette[2] = palette2;
     palette[3] = palette3;
 
-    
-    /*
-    Tile bg0 = {
-        .mem = {
-            0b01111111,
-            0b10000000,
-            0b10000000,
-            0b10000000,
-            0b10000000,
-            0b10000000,
-            0b10000000,
-            0b10000000,
-            0b10000000,
-            0b01111111,
-            0b01111111,
-            0b01111111,
-            0b01111111,
-            0b01111111,
-            0b01111111,
-            0b01111111
-        }
-    };
-    
-    Tile bg1 = {
-        .mem = {
-            0b11011110,
-            0b01100001,
-            0b01100001,
-            0b01100001,
-            0b01110001,
-            0b01011110,
-            0b01111111,
-            0b01100001,
-            0b01100001,
-            0b11011111,
-            0b11011111,
-            0b11011111,
-            0b11011111,
-            0b11111111,
-            0b11000001,
-            0b11011111
-        }
-    };
-    
-    
-    
-    Tile bg2 = {
-        .mem = {
-            0b10000000,
-            0b10000000,
-            0b11000000,
-            0b11110000,
-            0b10111111,
-            0b10001111,
-            0b10000001,
-            0b01111110,
-            0b01111111,
-            0b01111111,
-            0b11111111,
-            0b00111111,
-            0b01001111,
-            0b01110001,
-            0b01111111,
-            0b11111111,
-        }
-    };
-    
- 
-    Tile bg3 = {
-        .mem = {
-            0b01100001,
-            0b01100001,
-            0b11000001,
-            0b11000001,
-            0b10000001,
-            0b10000001,
-            0b10000011,
-            0b11111110,
-            0b11011111,
-            0b11011111,
-            0b10111111,
-            0b10111111,
-            0b01111111,
-            0b01111111,
-            0b01111111,
-            0b01111111,
-        }
-    };
 
-    tiles[0xb4] = bg0;
-    tiles[0xb5] = bg1;
-    tiles[0xb6] = bg2;
-    tiles[0xb7] = bg3;
-*/
+    place_ground_at(0, 13, MAP_WIDTH/2, 2);
     
-    // the ground
-    for (int i=0; i<MAP_WIDTH; i+=2) {
-        set_tile_at(0xb4, 1, i, 28);
-        set_tile_at(0xb5, 1, i+1, 28);
-        set_tile_at(0xb6, 1, i, 29);
-        set_tile_at(0xb7, 1, i+1, 29);
-    }
-    for (int i=0; i<MAP_WIDTH; i+=2) {
-        set_tile_at(0xb4, 1, i, 26);
-        set_tile_at(0xb5, 1, i+1, 26);
-        set_tile_at(0xb6, 1, i, 27);
-        set_tile_at(0xb7, 1, i+1, 27);
-    }
-    
-    // mountain left metatile (0x05)
-    set_tile_at(0x24, 0, 0, 24);
-    set_tile_at(0x30, 0, 1, 24);
-    set_tile_at(0x30, 0, 0, 25);
-    set_tile_at(0x26, 0, 1, 25);
 
-//    set_tile_at(0x24, 0, 2, 22);
-//    set_tile_at(0x30, 0, 3, 22);
-//    set_tile_at(0x30, 0, 2, 23);
-//    set_tile_at(0x26, 0, 3, 23);
-    
-    // mountain middle top metatile (0x07)
-//    set_tile_at(0x24, 0, 4, 20);
-//    set_tile_at(0x24, 0, 5, 20);
-//    set_tile_at(0x31, 0, 4, 21);
-//    set_tile_at(0x32, 0, 5, 21);
-
-    // mountain right metatile (0x08)   .db $33, $26, $24, $33 ;mountain right
-//    set_tile_at(0x33, 0, 6, 22);
-//    set_tile_at(0x24, 0, 7, 22);
-//    set_tile_at(0x26, 0, 6, 23);
-//    set_tile_at(0x33, 0, 7, 23);
-
-    set_tile_at(0x33, 0, 8, 24);
-    set_tile_at(0x24, 0, 9, 24);
-    set_tile_at(0x26, 0, 8, 25);
-    set_tile_at(0x33, 0, 9, 25);
-
-    // 0x06   .db $26, $26, $34, $26 ;mountain left bottom/middle center
-    set_tile_at(0x26, 0, 2, 24);
-    set_tile_at(0x34, 0, 3, 24);
-    set_tile_at(0x26, 0, 2, 25);
-    set_tile_at(0x26, 0, 3, 25);
-
-//    set_tile_at(0x26, 0, 4, 22);
-//    set_tile_at(0x34, 0, 5, 22);
-//    set_tile_at(0x26, 0, 4, 23);
-//    set_tile_at(0x26, 0, 5, 23);
-    
-    //  .db $34, $26, $26, $26 ;mountain right bottom
-    set_tile_at(0x34, 0, 6, 24);
-    set_tile_at(0x26, 0, 7, 24);
-    set_tile_at(0x26, 0, 6, 25);
-    set_tile_at(0x26, 0, 7, 25);
-
-    // .db $26, $26, $26, $26 ;mountain middle bottom
-    set_tile_at(0x26, 0, 4, 24);
-    set_tile_at(0x26, 0, 5, 24);
-    set_tile_at(0x26, 0, 4, 25);
-    set_tile_at(0x26, 0, 5, 25);
-
-    place_cloud_at(16, 6, 1);
-    place_cloud_at(38, 4, 1);
-    place_cloud_at(54, 6, 3);
-    place_cloud_at(72, 4, 2);
+    place_cloud_at(8, 3, 1);
+    place_cloud_at(19, 2, 1);
+    place_cloud_at(27, 3, 3);
+    place_cloud_at(36, 2, 2);
 
     place_bush_at(11, 12, 3);
     place_bush_at(23, 12, 1);
@@ -1307,6 +1155,8 @@ int main() {
     place_question_at(22, 5, 0);
 
     place_mountaintop_at(2, 10);
+    place_mountainbase_at(2, 10);
+    
     place_mountaintop_at(17, 11);
 
     
