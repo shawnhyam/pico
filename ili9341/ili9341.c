@@ -1033,6 +1033,17 @@ int main() {
     
     ili9341_set_command(0x01);//soft reset
     sleep_ms(100);
+
+    ili9341_set_command(ILI9341_GAMMASET);
+    ili9341_command_param(0x01);
+
+    // positive gamma correction
+    ili9341_set_command(ILI9341_GMCTRP1);
+    ili9341_write_data((uint8_t[15]){ 0x0f, 0x31, 0x2b, 0x0c, 0x0e, 0x08, 0x4e, 0xf1, 0x37, 0x07, 0x10, 0x03, 0x0e, 0x09, 0x00 }, 15);
+    
+    // negative gamma correction
+    ili9341_set_command(ILI9341_GMCTRN1);
+    ili9341_write_data((uint8_t[15]){ 0x00, 0x0e, 0x14, 0x03, 0x11, 0x07, 0x31, 0xc1, 0x48, 0x08, 0x0f, 0x0c, 0x31, 0x36, 0x0f }, 15);
     
     // memory access control
     ili9341_set_command(ILI9341_MADCTL);
@@ -1052,6 +1063,8 @@ int main() {
     
     // display on
     ili9341_set_command(ILI9341_DISPON);
+    
+
 
     // column address set
     ili9341_set_command(ILI9341_CASET);
