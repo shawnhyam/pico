@@ -174,19 +174,6 @@ typedef struct {
 // so a Tile consumes 24 bytes
 uint16_t global_background = SWAP_BYTES(SWAP_RB(0x843E));
 
-/*
-uint16_t palette[8] = {
-    SWAP_BYTES(SWAP_RB(0x843E)),
-    SWAP_BYTES(SWAP_RB(0xE637)),
-    SWAP_BYTES(SWAP_RB(0x6a02)),
-    SWAP_BYTES(SWAP_RB(ILI9341_BLACK)),
-    0x4444,
-    0x5555,
-    0x6666,
-    0x7777
-};
- */
-
 
 uint16_t palette0[8] = {  // .db $0f, $29, $1a, $0f
     0x0000,
@@ -243,6 +230,40 @@ uint16_t palette3[8] = {  // .db $0f, $27, $17, $0f
 
 
 uint16_t *palette[8];
+
+/*
+ .db $1e, $c2, $00, $6b, $06, $8b, $86, $63, $b7, $0f, $05
+ .db $03, $06, $23, $06, $4b, $b7, $bb, $00, $5b, $b7
+ .db $fb, $37, $3b, $b7, $0f, $0b, $1b, $37
+ .db $ff
+ */
+uint8_t level_data[29] = {
+    0x1e, 0xc2, 0x00, 0x6b, 0x8b, 0x86, 0x63, 0xb7, 0x0f, 0x05,
+    0x03, 0x06, 0x23, 0x06, 0x4b, 0xb7, 0xbb, 0x00, 0x5b, 0xb7,
+    0xfb, 0x37, 0x3b, 0xb7, 0x0f, 0x0b, 0x1b, 0x37,
+    0xff
+};
+
+// 0x1e 0xc2
+// time = 0b00
+// auto walk = 0b0
+// starting position = 0b11
+// background = 0b110
+// compliment = 0b11
+// scenery type = 0b00
+// ground/block type = 0b0010
+
+// 0xc2 0x1e (0b11000010 00011110)
+// time = 0b11
+// auto walk = 0
+// starting position = 00
+// background = 01
+// compliment =
+
+// 00011110 11000010
+// time = 01
+// auto walk = 1
+
 
 Tile tiles[256] = {
     /*
@@ -765,17 +786,17 @@ Tile tiles[256] = {
 
 Sprite sprites[256];
 
-#define MAP_WIDTH 96
-uint8_t background[30 * MAP_WIDTH] = { 1, 1, 2, 2 };
+#define MAP_WIDTH 416
+uint8_t background[30 * MAP_WIDTH] = { 0 };
 uint8_t bg_palette[30 * MAP_WIDTH] = { 0 };
 uint16_t scroll_offset;  // this is in 'map' pixels, not 'screen' pixels
 
-Tile* tile_at(uint8_t x, uint8_t y) {
+Tile* tile_at(int x, int y) {
     uint8_t tile_id = background[y*MAP_WIDTH + x];
     return &tiles[tile_id];
 }
 
-void set_tile_at(uint8_t tile_id, uint8_t palette, uint8_t x, uint8_t y) {
+void set_tile_at(uint8_t tile_id, uint8_t palette, int x, int y) {
     background[y*MAP_WIDTH + x] = tile_id;
     bg_palette[y*MAP_WIDTH + x] = palette;
 }
@@ -1158,6 +1179,33 @@ int main() {
     place_mountainbase_at(2, 10);
     
     place_mountaintop_at(17, 11);
+    
+    place_bush_at(41, 12, 2);
+    place_pipe_at(46, 12, 3);
+    place_mountaintop_at(50, 10);
+    place_mountainbase_at(50, 10);
+    place_pipe_at(57, 12, 3);
+
+    place_bush_at(59, 12, 3);
+    place_mountaintop_at(65, 11);
+    place_bush_at(71, 12, 1);
+    place_bush_at(89, 12, 2);
+    place_mountaintop_at(98, 10);
+    place_mountainbase_at(98, 10);
+    place_bush_at(107, 12, 3);
+    place_mountaintop_at(113, 11);
+    place_bush_at(119, 12, 1);
+    place_bush_at(137, 12, 2);
+    place_mountaintop_at(146, 10);
+    place_mountainbase_at(146, 10);
+    place_bush_at(158, 12, 0);
+    place_mountaintop_at(161, 11);
+    place_pipe_at(163, 12, 1);
+    place_bush_at(167, 12, 1);
+    place_pipe_at(179, 12, 1);
+    place_mountaintop_at(194, 10);
+    place_mountainbase_at(194, 10);
+
 
     
     draw_background();
