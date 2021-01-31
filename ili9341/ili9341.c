@@ -89,30 +89,8 @@
 #define ILI9341_GMCTRN1 0xE1 ///< Negative Gamma Correction
 //#define ILI9341_PWCTR6     0xFC
 
-// Color definitions
-#define ILI9341_BLACK 0x0000       ///<   0,   0,   0
-#define ILI9341_NAVY 0x000F        ///<   0,   0, 123
-#define ILI9341_DARKGREEN 0x03E0   ///<   0, 125,   0
-#define ILI9341_DARKCYAN 0x03EF    ///<   0, 125, 123
-#define ILI9341_MAROON 0x7800      ///< 123,   0,   0
-#define ILI9341_PURPLE 0x780F      ///< 123,   0, 123
-#define ILI9341_OLIVE 0x7BE0       ///< 123, 125,   0
-#define ILI9341_LIGHTGREY 0xC618   ///< 198, 195, 198
-#define ILI9341_DARKGREY 0x7BEF    ///< 123, 125, 123
-#define ILI9341_BLUE 0x001F        ///<   0,   0, 255
-#define ILI9341_GREEN 0x07E0       ///<   0, 255,   0
-#define ILI9341_CYAN 0x07FF        ///<   0, 255, 255
-#define ILI9341_RED 0xF800         ///< 255,   0,   0
-#define ILI9341_MAGENTA 0xF81F     ///< 255,   0, 255
-#define ILI9341_YELLOW 0xFFE0      ///< 255, 255,   0
-#define ILI9341_WHITE 0xFFFF       ///< 255, 255, 255
-#define ILI9341_ORANGE 0xFD20      ///< 255, 165,   0
-#define ILI9341_GREENYELLOW 0xAFE5 ///< 173, 255,  41
-#define ILI9341_PINK 0xFC18        ///< 255, 130, 198
-
 #define LCD_W 320
 #define LCD_H 240
-#define SWAP_RED_BLUE 1  // my device didn't match the datasheet
 
 
 static inline void cs_select() {
@@ -147,19 +125,19 @@ void ili9341_write_data(void *buffer, int bytes) {
     cs_deselect();
 }
 
-uint16_t swap_red_blue(uint16_t color) {
-    int r = (color & 0xf800) >> 11;
-    int g = (color & 0x07d0) >> 5;
-    int b = (color & 0x001f);
-    
-    return (b << 11) | (g << 5) | r;
-}
+//uint16_t swap_red_blue(uint16_t color) {
+//    int r = (color & 0xf800) >> 11;
+//    int g = (color & 0x07d0) >> 5;
+//    int b = (color & 0x001f);
+//
+//    return (b << 11) | (g << 5) | r;
+//}
 
 uint16_t swap_bytes(uint16_t color) {
     return (color>>8) | (color<<8);
 }
 
-#define SWAP_RB(color) (((color & 0xf800) >> 11) | (color & 0x07d0) | (color & 0x001f) << 11)
+//#define SWAP_RB(color) (((color & 0xf800) >> 11) | (color & 0x07d0) | (color & 0x001f) << 11)
 #define SWAP_BYTES(color) ((uint16_t)(color>>8) | (uint16_t)(color<<8))
 
 typedef struct {
@@ -172,14 +150,14 @@ typedef struct {
 
 // a Tile is 8x8 pixels; each pixel can be one of 8 colors, which is pulled from a palette
 // so a Tile consumes 24 bytes
-uint16_t global_background = SWAP_BYTES(SWAP_RB(0x843E));
+uint16_t global_background = SWAP_BYTES(0x843E);
 
 
 uint16_t palette0[8] = {  // .db $0f, $29, $1a, $0f
     0x0000,
-    SWAP_BYTES(SWAP_RB(0x7600)),  //CC23
-    SWAP_BYTES(SWAP_RB(0x03C0)),  // 52C0
-    SWAP_BYTES(SWAP_RB(ILI9341_BLACK)),
+    SWAP_BYTES(0x7600),  //CC23
+    SWAP_BYTES(0x03C0),  // 52C0
+    SWAP_BYTES(0x0000),
     0x0000,
     0x0000,
     0x0000,
@@ -197,9 +175,9 @@ uint16_t palette0[8] = {  // .db $0f, $29, $1a, $0f
 // ground
 static uint16_t palette1[8] = {  // .db $0f, $36, $17, $0f
     0x0000,
-    SWAP_BYTES(SWAP_RB(0xE595)),
-    SWAP_BYTES(SWAP_RB(0x71C0)),
-    SWAP_BYTES(SWAP_RB(ILI9341_BLACK)),
+    SWAP_BYTES(0xE595),
+    SWAP_BYTES(0x71C0),
+    SWAP_BYTES(0x0000),
     0x0000,
     0x0000,
     0x0000,
@@ -208,9 +186,9 @@ static uint16_t palette1[8] = {  // .db $0f, $36, $17, $0f
 
 uint16_t palette2[8] = {  // .db $0f, $30, $21, $0f
     0x0000,
-    SWAP_BYTES(SWAP_RB(ILI9341_WHITE)),
-    SWAP_BYTES(SWAP_RB(0x4CDC)),
-    SWAP_BYTES(SWAP_RB(ILI9341_BLACK)),
+    SWAP_BYTES(0xFFFF),
+    SWAP_BYTES(0x4CDC),
+    SWAP_BYTES(0x0000),
     0x0000,
     0x0000,
     0x0000,
@@ -219,9 +197,9 @@ uint16_t palette2[8] = {  // .db $0f, $30, $21, $0f
 
 uint16_t palette3[8] = {  // .db $0f, $27, $17, $0f
     0x0000,
-    SWAP_BYTES(SWAP_RB(0xCC23)),
-    SWAP_BYTES(SWAP_RB(0x71C0)),
-    SWAP_BYTES(SWAP_RB(ILI9341_BLACK)),
+    SWAP_BYTES(0xCC23),
+    SWAP_BYTES(0x71C0),
+    SWAP_BYTES(0x0000),
     0x0000,
     0x0000,
     0x0000,
@@ -1072,7 +1050,7 @@ int main() {
     
     // memory access control
     ili9341_set_command(ILI9341_MADCTL);
-    ili9341_command_param(0x40);
+    ili9341_command_param(0x48);
     
     // pixel format
     ili9341_set_command(ILI9341_PIXFMT);
@@ -1089,7 +1067,8 @@ int main() {
     // display on
     ili9341_set_command(ILI9341_DISPON);
     
-
+    //
+    
 
     // column address set
     ili9341_set_command(ILI9341_CASET);
