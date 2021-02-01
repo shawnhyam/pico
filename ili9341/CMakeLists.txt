@@ -8,6 +8,7 @@ pico_sdk_init()
 
 add_executable(ili9341
     ili9341.c
+    main.c
 )
 
 pico_enable_stdio_usb(ili9341 1)
