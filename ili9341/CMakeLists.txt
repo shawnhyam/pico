@@ -27,4 +27,4 @@ add_executable(mode0_demo
 
 pico_enable_stdio_usb(mode0_demo 1)
 pico_add_extra_outputs(mode0_demo)
-target_link_libraries(mode0_demo pico_stdlib hardware_spi)
+target_link_libraries(mode0_demo pico_stdlib pico_mem_ops hardware_spi)

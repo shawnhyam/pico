@@ -2,43 +2,40 @@
 #ifndef _TEXT_MODE_H
 #define _TEXT_MODE_H
 
-// ARNE-16 palette -- https://lospec.com/palette-list/arne-16
+// ARNE-16 palette converted to RGB565 -- https://lospec.com/palette-list/arne-16
 typedef enum {
     MODE0_BLACK,
-    MODE0_WOODBURN,
-    MODE0_BRICK_RED,
-    MODE0_DEEP_BLUSH,
-    
-    MODE0_DARK_GRAY,
-    MODE0_COLOR5,
-    MODE0_COLOR6,
-    MODE0_COLOR7,
-
-    MODE0_COLOR8,
-    MODE0_COLOR9,
-    MODE0_COLOR10,
-    MODE0_COLOR11,
-
-    MODE0_COLOR12,
-    MODE0_COLOR13,
-    MODE0_COLOR14,
-    MODE0_WHITE
+    MODE0_BROWN,
+    MODE0_RED,
+    MODE0_BLUSH,
+    MODE0_GRAY,
+    MODE0_DESERT,
+    MODE0_ORANGE,
+    MODE0_YELLOW,
+    MODE0_WHITE,
+    MODE0_MIDNIGHT,
+    MODE0_DARK_SLATE_GRAY,
+    MODE0_GREEN,
+    MODE0_YELLOW_GREEN,
+    MODE0_BLUE,
+    MODE0_PICTON_BLUE,
+    MODE0_PALE_BLUE
 } mode0_color_t;
-
 
 void mode0_init();
 void mode0_clear(mode0_color_t color);
 void mode0_draw_screen();
 void mode0_draw_region(uint8_t x, uint8_t y, uint8_t width, uint8_t height);
 void mode0_scroll_vertical(int8_t amount);
-void mode0_scroll_horizontal(int8_t amount);
 void mode0_set_foreground(mode0_color_t color);
 void mode0_set_background(mode0_color_t color);
 void mode0_set_cursor(uint8_t x, uint8_t y);
+uint8_t mode0_get_cursor_x();
+uint8_t mode0_get_cursor_y();
 void mode0_print(char *s);
 void mode0_putc(char c);
 
-// maybe?
+// Won't redraw until the matching _end is invoked.
 void mode0_begin();
 void mode0_end();
 

@@ -12,13 +12,12 @@ int main() {
     mode0_color_t bg = MODE0_BLACK;
     
     while (1) {
-        mode0_print("My Computer (c) 2021, Shawn Hyam\n");
-        sleep_ms(200);
+        mode0_print("Retro Computer (c) 2021, Shawn Hyam\n");
+        sleep_ms(500);
         fg = (fg+1) % 16;
         if (fg == 0) {
             bg = (bg+1) % 16;
             mode0_set_background(bg);
-            mode0_clear(bg);
         }
         mode0_set_foreground(fg);
 

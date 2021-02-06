@@ -1,12 +1,14 @@
 #include "pico/stdlib.h"
+#include <string.h>
 #include "hardware/spi.h"
 #include "ili9341.h"
 #include "mode0.h"
 
 /* Character graphics mode */
 
-// Characters are 6x10
-// 6x10, 1 bit per pixel = 60 bits... if we format 1 byte per row, then 10 bytes
+// Characters are 8x12 -- characters start at (x:1,y:1) and are 5x7 in size, so
+// it is possible to not display the full area. This display mode actually treats
+// them as 6x10, starting at (x:1,y:0)
 static const uint8_t font_data[94][12] = {
     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
     { 0x00, 0x10, 0x10, 0x10, 0x10, 0x10, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00 },
@@ -138,10 +140,9 @@ static uint16_t palette[16] = {
 
 void mode0_clear(mode0_color_t color) {
     mode0_begin();
-    for (int i=0; i<TEXT_HEIGHT*TEXT_WIDTH; i++) {
-        screen[i] = 0;
-        colors[i] = color;
-    }
+    int size = TEXT_WIDTH*TEXT_HEIGHT;
+    memset(screen, 0, size);
+    memset(colors, color, size);
     mode0_set_cursor(0, 0);
     mode0_end();
 }
@@ -163,6 +164,14 @@ void mode0_set_cursor(uint8_t x, uint8_t y) {
     cursor_y = y;
 }
 
+uint8_t mode0_get_cursor_x() {
+    return cursor_x;
+}
+
+uint8_t mode0_get_cursor_y() {
+    return cursor_y;
+}
+
 void mode0_putc(char c) {
     mode0_begin();
     
@@ -171,11 +180,14 @@ void mode0_putc(char c) {
         cursor_y = TEXT_HEIGHT-1;
     }
 
+    int idx = cursor_y*TEXT_WIDTH + cursor_x;
     if (c == '\n') {
+        // fill the rest of the line with empty content + the current bg color
+        memset(screen+idx, 0, TEXT_WIDTH-cursor_x);
+        memset(colors+idx, screen_bg_color, TEXT_WIDTH-cursor_x);
         cursor_y++;
         cursor_x = 0;
     } else if (c>=32 && c<=127) {
-        int idx = cursor_y*TEXT_WIDTH + cursor_x;
         screen[idx] = c-32;
         colors[idx] = ((screen_fg_color & 0xf) << 4) | (screen_bg_color & 0xf);
         
@@ -236,39 +248,32 @@ void mode0_draw_screen() {
     // start writing
     ili9341_set_command(ILI9341_RAMWR);
 
-    uint16_t buffer[6*8*240];  // 'amount' pixels wide, 240 pixels tall
+    uint16_t buffer[6*240];  // 'amount' pixels wide, 240 pixels tall
 
     int screen_idx = 0;
-    for (int x=0; x<TEXT_WIDTH; x+=8) {
+    for (int x=0; x<TEXT_WIDTH; x++) {
         // create one column of screen information
         
         uint16_t *buffer_idx = buffer;
         
-        int foo = TEXT_WIDTH-x;
-        if (foo > 8) { foo = 8; }
-        
-        for (int a=0; a<foo; a++) {
-        
         for (int bit=0; bit<6; bit++) {
             uint8_t mask = 64>>bit;
-        for (int y=TEXT_HEIGHT-1; y>=0; y--) {
-            uint8_t character = screen[y*53+x+a];
-            uint16_t fg_color = palette[colors[y*53+x+a] >> 4];
-            uint16_t bg_color = palette[colors[y*53+x+a] & 0xf];
-            
-            const uint8_t* pixel_data = font_data[character];
-            
-            // draw the character into the buffer
+            for (int y=TEXT_HEIGHT-1; y>=0; y--) {
+                uint8_t character = screen[y*53+x];
+                uint16_t fg_color = palette[colors[y*53+x] >> 4];
+                uint16_t bg_color = palette[colors[y*53+x] & 0xf];
+                
+                const uint8_t* pixel_data = font_data[character];
+                
+                // draw the character into the buffer
                 for (int j=10; j>=1; j--) {
                     *buffer_idx++ = (pixel_data[j] & mask) ? fg_color : bg_color;
-                    //*buffer_idx++ = screen_fg_color;
                 }
             }
         }
         
-        }
         // now send the slice
-        ili9341_write_data(buffer, 6*foo*240*2);
+        ili9341_write_data(buffer, 6*240*2);
     }
     
     uint16_t extra_buffer[2*240] = { 0 };
@@ -278,23 +283,28 @@ void mode0_draw_screen() {
 
 void mode0_scroll_vertical(int8_t amount) {
     mode0_begin();
+
     
-    assert(amount >= 1);
-    int idx0 = 0;
-    int idx1 = TEXT_WIDTH*amount;
-    
-    for (int y=0; y<TEXT_HEIGHT-amount; y++) {
-        for (int x=0; x<TEXT_WIDTH; x++) {
-            colors[idx0] = colors[idx1];
-            screen[idx0++] = screen[idx1++];
-        }
+    if (amount > 0) {
+        int size1 = TEXT_WIDTH*amount;
+        int size2 = TEXT_WIDTH*TEXT_HEIGHT - size1;
+        
+        memmove(screen, screen+size1, size2);
+        memmove(colors, colors+size1, size2);
+        memset(screen+size2, 0, size1);
+        memset(colors+size2, screen_bg_color, size1);
+    } else if (amount < 0) {
+        amount = -amount;
+        int size1 = TEXT_WIDTH*amount;
+        int size2 = TEXT_WIDTH*TEXT_HEIGHT - size1;
+
+        memmove(screen+size1, screen, size2);
+        memmove(colors+size1, colors, size2);
+        memset(screen, 0, size1);
+        memset(colors, screen_bg_color, size1);
     }
     
     mode0_end();
-}
-
-void mode0_scroll_horizontal(int8_t amount) {
-    // TODO
 }
 
 void mode0_init() {
