@@ -8,6 +8,9 @@
 #define SWAP_BYTES(color) ((uint16_t)(color>>8) | (uint16_t)(color<<8))
 
 
+
+/* Tiled graphics mode */
+
 typedef struct {
     uint8_t mem[24];
 } Tile;

@@ -72,6 +72,7 @@
 #define ILI9341_GMCTRN1 0xE1 ///< Negative Gamma Correction
 //#define ILI9341_PWCTR6     0xFC
 
+extern const uint8_t font6x8[];
 
 void ili9341_set_command(uint8_t cmd);
 void ili9341_command_param(uint8_t data);
