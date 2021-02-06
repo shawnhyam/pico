@@ -9,7 +9,7 @@
 // Characters are 8x12 -- characters start at (x:1,y:1) and are 5x7 in size, so
 // it is possible to not display the full area. This display mode actually treats
 // them as 6x10, starting at (x:1,y:0)
-static const uint8_t font_data[94][12] = {
+static const uint8_t font_data[95][12] = {
     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
     { 0x00, 0x10, 0x10, 0x10, 0x10, 0x10, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00 },
     { 0x00, 0x28, 0x28, 0x28, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
@@ -103,7 +103,8 @@ static const uint8_t font_data[94][12] = {
     { 0x00, 0x00, 0x00, 0x7C, 0x08, 0x10, 0x20, 0x7C, 0x00, 0x00, 0x00, 0x00 },
     { 0x00, 0x20, 0x10, 0x10, 0x08, 0x10, 0x10, 0x20, 0x00, 0x00, 0x00, 0x00 },
     { 0x00, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x00, 0x00, 0x00, 0x00 },
-    { 0x00, 0x08, 0x10, 0x10, 0x20, 0x10, 0x10, 0x08, 0x00, 0x00, 0x00, 0x00 }
+    { 0x00, 0x08, 0x10, 0x10, 0x20, 0x10, 0x10, 0x08, 0x00, 0x00, 0x00, 0x00 },
+    { 0x00, 0x28, 0x50, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }
 };
 
 
@@ -118,6 +119,8 @@ static int cursor_x = 0;
 static int cursor_y = 0;
 static uint8_t screen[TEXT_HEIGHT * TEXT_WIDTH] = { 0 };
 static uint8_t colors[TEXT_HEIGHT * TEXT_WIDTH] = { 0 };
+static uint8_t show_cursor = 0;
+
 static int depth = 0;
 static uint16_t palette[16] = {
     SWAP_BYTES(0x0000),
@@ -164,6 +167,18 @@ void mode0_set_cursor(uint8_t x, uint8_t y) {
     cursor_y = y;
 }
 
+void mode0_show_cursor() {
+    mode0_begin();
+    show_cursor = 1;
+    mode0_end();
+}
+
+void mode0_hide_cursor() {
+    mode0_begin();
+    show_cursor = 0;
+    mode0_end();
+}
+
 uint8_t mode0_get_cursor_x() {
     return cursor_x;
 }
@@ -187,6 +202,8 @@ void mode0_putc(char c) {
         memset(colors+idx, screen_bg_color, TEXT_WIDTH-cursor_x);
         cursor_y++;
         cursor_x = 0;
+    } else if (c == '\r') {
+        //cursor_x = 0;
     } else if (c>=32 && c<=127) {
         screen[idx] = c-32;
         colors[idx] = ((screen_fg_color & 0xf) << 4) | (screen_bg_color & 0xf);
@@ -206,6 +223,14 @@ void mode0_print(const char *str) {
     char c;
     while (c = *str++) {
         mode0_putc(c);
+    }
+    mode0_end();
+}
+
+void mode0_write(const char *str, int len) {
+    mode0_begin();
+    for (int i=0; i<len; i++) {
+        mode0_putc(*str++);
     }
     mode0_end();
 }
@@ -262,7 +287,11 @@ void mode0_draw_screen() {
                 uint8_t character = screen[y*53+x];
                 uint16_t fg_color = palette[colors[y*53+x] >> 4];
                 uint16_t bg_color = palette[colors[y*53+x] & 0xf];
-                
+
+                if (show_cursor && (cursor_x == x) && (cursor_y == y)) {
+                    bg_color = MODE0_GREEN;
+                }
+                                
                 const uint8_t* pixel_data = font_data[character];
                 
                 // draw the character into the buffer

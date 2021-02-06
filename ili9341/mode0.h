@@ -33,7 +33,10 @@ void mode0_set_cursor(uint8_t x, uint8_t y);
 uint8_t mode0_get_cursor_x();
 uint8_t mode0_get_cursor_y();
 void mode0_print(const char *s);
+void mode0_write(const char *s, int len);
 void mode0_putc(char c);
+void mode0_show_cursor();
+void mode0_hide_cursor();
 
 // Won't redraw until the matching _end is invoked.
 void mode0_begin();
