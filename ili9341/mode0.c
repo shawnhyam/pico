@@ -108,17 +108,41 @@ static const uint8_t font_data[94][12] = {
 #define TEXT_HEIGHT 24
 #define TEXT_WIDTH 53
 
-static uint16_t screen_bg_color = 0x0000;
-static uint16_t screen_fg_color = 0xffff;  // TODO need to store a color per cell
-static int cursor = 0;
-static uint8_t screen[TEXT_HEIGHT * TEXT_WIDTH] = { 0 };
-static int depth = 0;
+#define SWAP_BYTES(color) ((uint16_t)(color>>8) | (uint16_t)(color<<8))
 
-void mode0_clear() {
+static mode0_color_t screen_bg_color = MODE0_BLACK;
+static mode0_color_t screen_fg_color = MODE0_WHITE;  // TODO need to store a color per cell
+static int cursor_x = 0;
+static int cursor_y = 0;
+static uint8_t screen[TEXT_HEIGHT * TEXT_WIDTH] = { 0 };
+static uint8_t colors[TEXT_HEIGHT * TEXT_WIDTH] = { 0 };
+static int depth = 0;
+static uint16_t palette[16] = {
+    SWAP_BYTES(0x0000),
+    SWAP_BYTES(0x49E5),
+    SWAP_BYTES(0xB926),
+    SWAP_BYTES(0xE371),
+    SWAP_BYTES(0x9CF3),
+    SWAP_BYTES(0xA324),
+    SWAP_BYTES(0xEC46),
+    SWAP_BYTES(0xF70D),
+    SWAP_BYTES(0xffff),
+    SWAP_BYTES(0x1926),
+    SWAP_BYTES(0x2A49),
+    SWAP_BYTES(0x4443),
+    SWAP_BYTES(0xA664),
+    SWAP_BYTES(0x02B0),
+    SWAP_BYTES(0x351E),
+    SWAP_BYTES(0xB6FD)
+};
+
+void mode0_clear(mode0_color_t color) {
     mode0_begin();
     for (int i=0; i<TEXT_HEIGHT*TEXT_WIDTH; i++) {
         screen[i] = 0;
+        colors[i] = color;
     }
+    mode0_set_cursor(0, 0);
     mode0_end();
 }
 
@@ -135,17 +159,33 @@ void mode0_set_background(mode0_color_t color) {
 }
 
 void mode0_set_cursor(uint8_t x, uint8_t y) {
-    cursor = y*TEXT_WIDTH + x;
+    cursor_x = x;
+    cursor_y = y;
 }
 
 void mode0_putc(char c) {
     mode0_begin();
-    if (c == '\n') {
-        int y = (cursor/53) + 1;
-        cursor = y*53;
-    } else if (c>=32 && c<=127) {
-        screen[cursor++] = c-32;
+    
+    if (cursor_y >= TEXT_HEIGHT) {
+        mode0_scroll_vertical(cursor_y-TEXT_HEIGHT+1);
+        cursor_y = TEXT_HEIGHT-1;
     }
+
+    if (c == '\n') {
+        cursor_y++;
+        cursor_x = 0;
+    } else if (c>=32 && c<=127) {
+        int idx = cursor_y*TEXT_WIDTH + cursor_x;
+        screen[idx] = c-32;
+        colors[idx] = ((screen_fg_color & 0xf) << 4) | (screen_bg_color & 0xf);
+        
+        cursor_x++;
+        if (cursor_x >= TEXT_WIDTH) {
+            cursor_x = 0;
+            cursor_y++;
+        }
+    }
+    
     mode0_end();
 }
 
@@ -196,38 +236,61 @@ void mode0_draw_screen() {
     // start writing
     ili9341_set_command(ILI9341_RAMWR);
 
+    uint16_t buffer[6*8*240];  // 'amount' pixels wide, 240 pixels tall
+
     int screen_idx = 0;
-    for (int x=0; x<TEXT_WIDTH; x++) {
+    for (int x=0; x<TEXT_WIDTH; x+=8) {
         // create one column of screen information
         
-        uint16_t buffer[6*240];  // 'amount' pixels wide, 240 pixels tall
         uint16_t *buffer_idx = buffer;
+        
+        int foo = TEXT_WIDTH-x;
+        if (foo > 8) { foo = 8; }
+        
+        for (int a=0; a<foo; a++) {
         
         for (int bit=0; bit<6; bit++) {
             uint8_t mask = 64>>bit;
         for (int y=TEXT_HEIGHT-1; y>=0; y--) {
-            uint8_t character = screen[y*53+x];
+            uint8_t character = screen[y*53+x+a];
+            uint16_t fg_color = palette[colors[y*53+x+a] >> 4];
+            uint16_t bg_color = palette[colors[y*53+x+a] & 0xf];
+            
             const uint8_t* pixel_data = font_data[character];
             
             // draw the character into the buffer
                 for (int j=10; j>=1; j--) {
-                    *buffer_idx++ = (pixel_data[j] & mask) ? screen_fg_color : screen_bg_color;
+                    *buffer_idx++ = (pixel_data[j] & mask) ? fg_color : bg_color;
                     //*buffer_idx++ = screen_fg_color;
                 }
             }
         }
         
+        }
         // now send the slice
-        ili9341_write_data(buffer, 6*240*2);
+        ili9341_write_data(buffer, 6*foo*240*2);
     }
     
-    uint16_t buffer[2*240] = { 0 };
-    ili9341_write_data(buffer, 2*240*2);
+    uint16_t extra_buffer[2*240] = { 0 };
+    ili9341_write_data(extra_buffer, 2*240*2);
 
 }
 
 void mode0_scroll_vertical(int8_t amount) {
-    // TODO
+    mode0_begin();
+    
+    assert(amount >= 1);
+    int idx0 = 0;
+    int idx1 = TEXT_WIDTH*amount;
+    
+    for (int y=0; y<TEXT_HEIGHT-amount; y++) {
+        for (int x=0; x<TEXT_WIDTH; x++) {
+            colors[idx0] = colors[idx1];
+            screen[idx0++] = screen[idx1++];
+        }
+    }
+    
+    mode0_end();
 }
 
 void mode0_scroll_horizontal(int8_t amount) {

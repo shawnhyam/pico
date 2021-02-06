@@ -8,11 +8,19 @@ int main() {
     mode0_init();
     
     mode0_set_cursor(0, 0);
-    mode0_print("Hello world\n");
-    mode0_print("This is more text\n");
-    mode0_print("And here is more\n");
+    mode0_color_t fg = MODE0_WHITE;
+    mode0_color_t bg = MODE0_BLACK;
     
     while (1) {
-        sleep_ms(10);
+        mode0_print("My Computer (c) 2021, Shawn Hyam\n");
+        sleep_ms(200);
+        fg = (fg+1) % 16;
+        if (fg == 0) {
+            bg = (bg+1) % 16;
+            mode0_set_background(bg);
+            mode0_clear(bg);
+        }
+        mode0_set_foreground(fg);
+
     }
 }
