@@ -32,7 +32,7 @@ void mode0_set_background(mode0_color_t color);
 void mode0_set_cursor(uint8_t x, uint8_t y);
 uint8_t mode0_get_cursor_x();
 uint8_t mode0_get_cursor_y();
-void mode0_print(char *s);
+void mode0_print(const char *s);
 void mode0_putc(char c);
 
 // Won't redraw until the matching _end is invoked.

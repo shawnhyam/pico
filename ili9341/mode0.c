@@ -201,7 +201,7 @@ void mode0_putc(char c) {
     mode0_end();
 }
 
-void mode0_print(char *str) {
+void mode0_print(const char *str) {
     mode0_begin();
     char c;
     while (c = *str++) {

@@ -1,7 +1,5 @@
 #include "pico/stdlib.h"
-#include "hardware/spi.h"
 #include "mode0.h"
-#include "ili9341.h"
 
 
 int main() {
