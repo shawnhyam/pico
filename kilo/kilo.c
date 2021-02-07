@@ -48,6 +48,10 @@ typedef struct  {
     int screen_cols;
     int num_rows;
     erow_t *row;
+    char *filename;
+    char statusmsg[80];
+    absolute_time_t statusmsg_time;
+
     //struct termios orig_termios;
 } editor_config_t;
 
@@ -104,6 +108,9 @@ void kilo_append_row(char *s, size_t len) {
 /* FILE?? I/O */
 
 void kilo_open() {
+    free(E.filename);
+    E.filename = strdup("filename.txt");
+    
     char *line = "\tHello, world!";
     kilo_append_row(line, 13);
     char buffer[100];
@@ -123,9 +130,12 @@ void kilo_init() {
     E.col_offset = 0;
     E.num_rows = 0;
     E.screen_cols = MODE0_WIDTH;
-    E.screen_rows = MODE0_HEIGHT;
+    E.screen_rows = MODE0_HEIGHT-2;
     E.row = NULL;
-    
+    E.filename = NULL;
+    E.statusmsg[0] = '\0';
+    E.statusmsg_time = 0;
+
     mode0_show_cursor();
 }
 
@@ -314,15 +324,60 @@ void kilo_draw_rows() {
     mode0_end();
 }
 
+void kilo_draw_status_bar() {
+    mode0_set_background(MODE0_WHITE);
+    mode0_set_foreground(MODE0_BLACK);
+    mode0_set_cursor(0, E.screen_rows-1);
+    
+    char status[80], rstatus[80];
+    int len = snprintf(status, sizeof(status), "%.20s - %d lines",
+                       E.filename ? E.filename : "[No Name]", E.num_rows);
+    int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d",
+                        E.cy + 1, E.num_rows);
+    if (len > E.screen_cols) len = E.screen_cols;
+    mode0_write(status, len);
+    while (len < E.screen_cols) {
+        if (E.screen_cols - len == rlen) {
+            mode0_write(rstatus, rlen);
+            break;
+        } else {
+            mode0_write(" ", 1);
+            len++;
+        }
+    }
+    
+    mode0_set_background(MODE0_BLACK);
+    mode0_set_foreground(MODE0_WHITE);
+}
+
+void kilo_draw_message_bar() {
+    mode0_set_cursor(0, E.screen_rows);
+
+    int msglen = strlen(E.statusmsg);
+    if (msglen > E.screen_cols) msglen = E.screen_cols;
+    if (msglen && get_absolute_time() - E.statusmsg_time < 5000000)
+        mode0_write(E.statusmsg, msglen);
+}
+
 void kilo_refresh_screen() {
     mode0_begin();
     mode0_clear(MODE0_BLACK);
     
     kilo_scroll();
     kilo_draw_rows();
+    kilo_draw_status_bar();
+    kilo_draw_message_bar();
     
     mode0_set_cursor(E.rx - E.col_offset, E.cy - E.row_offset);
     mode0_end();
+}
+
+void kilo_set_status_message(const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(E.statusmsg, sizeof(E.statusmsg), fmt, ap);
+    va_end(ap);
+    E.statusmsg_time = get_absolute_time();
 }
 
 int main() {
@@ -330,6 +385,8 @@ int main() {
     stdio_init_all();
     kilo_init();
     kilo_open();
+
+    kilo_set_status_message("HELP: Ctrl-Q = quit");
 
     
     while (1) {
