@@ -6,12 +6,16 @@
 #include <ctype.h>
 #include <stdlib.h>  // ??
 #include <string.h>  // ??
+#include "hardware/flash.h"
 
-
+// We're going to erase and reprogram a region 256k from the start of flash.
+// Once done, we can access this at XIP_BASE + 256k.
+#define FLASH_TARGET_OFFSET (256 * 1024)
 
 /* DEFINES */
 #define KILO_VERSION "0.0.1"
 #define KILO_TAB_STOP 4
+#define KILO_QUIT_TIMES 3
 #define CTRL_KEY(k) ((k) & 0x1f)
 
 // FIXME get these from mode0
@@ -19,6 +23,7 @@
 #define MODE0_WIDTH 53
 
 typedef enum {
+    BACKSPACE = 127,
     ARROW_LEFT = 1000,
     ARROW_RIGHT,
     ARROW_UP,
@@ -47,6 +52,7 @@ typedef struct  {
     int screen_rows;
     int screen_cols;
     int num_rows;
+    int dirty;
     erow_t *row;
     char *filename;
     char statusmsg[80];
@@ -56,6 +62,12 @@ typedef struct  {
 } editor_config_t;
 
 static editor_config_t E;
+
+/* PROTOTYPES */
+
+
+void kilo_set_status_message(const char *fmt, ...);
+void kilo_init();
 
 /* ROW OPERATIONS*/
 
@@ -74,7 +86,7 @@ void kilo_update_row(erow_t *row) {
     for (int j = 0; j < row->size; j++) {
         if (row->chars[j] == '\t') tabs++;
     }
-    
+
     free(row->render);
     row->render = malloc(row->size+ tabs*(KILO_TAB_STOP-1) + 1);
     int idx = 0;
@@ -90,35 +102,180 @@ void kilo_update_row(erow_t *row) {
     row->rsize = idx;
 }
 
-void kilo_append_row(char *s, size_t len) {
+void kilo_insert_row(int at, const char *s, size_t len) {
+    if (at<0 || at>E.num_rows) return;
+
     E.row = realloc(E.row, sizeof(erow_t) * (E.num_rows + 1));
-    int at = E.num_rows;
+    memmove(&E.row[at+1], &E.row[at], sizeof(erow_t) * (E.num_rows - at));
+
     E.row[at].size = len;
     E.row[at].chars = malloc(len + 1);
     memcpy(E.row[at].chars, s, len);
     E.row[at].chars[len] = '\0';
-    
+
     E.row[at].rsize = 0;
     E.row[at].render = NULL;
     kilo_update_row(&E.row[at]);
-    
+
+	E.dirty++;
     E.num_rows++;
+}
+
+void kilo_free_row(erow_t *row) {
+    free(row->render);
+    free(row->chars);
+}
+
+void kilo_del_row(int at) {
+	if (at<0 || at>=E.num_rows) return;
+	kilo_free_row(&E.row[at]);
+	memmove(&E.row[at], &E.row[at+1], sizeof(erow_t) * (E.num_rows - at - 1));
+	E.num_rows--;
+	E.dirty++;
+}
+
+void kilo_row_insert_char(erow_t *row, int at, int c) {
+    if (at < 0 || at > row->size) at = row->size;
+    row->chars = realloc(row->chars, row->size + 2);
+    memmove(&row->chars[at + 1], &row->chars[at], row->size - at + 1);
+    row->size++;
+    row->chars[at] = c;
+    kilo_update_row(row);
+    E.dirty++;
+}
+
+void kilo_row_append_string(erow_t *row, char *s, size_t len) {
+    row->chars = realloc(row->chars, row->size + len + 1);
+    memcpy(&row->chars[row->size], s, len);
+    row->size += len;
+    row->chars[row->size] = '\0';
+    kilo_update_row(row);
+    E.dirty++;
+}
+
+void kilo_row_del_char(erow_t *row, int at) {
+	if (at < 0 || at > row->size) return;
+	memmove(&row->chars[at], &row->chars[at+1], row->size-at);
+	row->size--;
+	kilo_update_row(row);
+	E.dirty++;
+}
+
+
+/* EDITOR OPERATIONS */
+
+void kilo_insert_char(int c) {
+    if (E.cy == E.num_rows) {
+        kilo_insert_row(E.num_rows, "", 0);
+    }
+    kilo_row_insert_char(&E.row[E.cy], E.cx, c);
+    E.cx++;
+}
+
+void kilo_insert_newline() {
+    if (E.cx == 0) {
+        kilo_insert_row(E.cy, "", 0);
+    } else {
+        erow_t *row = &E.row[E.cy];
+        kilo_insert_row(E.cy + 1, &row->chars[E.cx], row->size - E.cx);
+        row = &E.row[E.cy];
+        row->size = E.cx;
+        row->chars[row->size] = '\0';
+        kilo_update_row(row);
+    }
+    E.cy++;
+    E.cx = 0;
+}
+
+void kilo_del_char() {
+    if (E.cy == E.num_rows) return;
+	if (E.cx == 0 && E.cy == 0) return;
+
+    erow_t *row = &E.row[E.cy];
+    if (E.cx > 0) {
+        kilo_row_del_char(row, E.cx-1);
+        E.cx--;
+    } else {
+        E.cx = E.row[E.cy-1].size;
+        kilo_row_append_string(&E.row[E.cy-1], row->chars, row->size);
+        kilo_del_row(E.cy);
+        E.cy--;
+    }
 }
 
 /* FILE?? I/O */
 
 void kilo_open() {
-    free(E.filename);
+	kilo_init();
+
+    const uint8_t *flash_target_contents = (const uint8_t *) (XIP_BASE + FLASH_TARGET_OFFSET);
+
+	free(E.filename);
     E.filename = strdup("filename.txt");
-    
-    char *line = "\tHello, world!";
-    kilo_append_row(line, 13);
-    char buffer[100];
-    for (int i=0; i<50; i++) {
-        sprintf(buffer, "This is another row of text: %d", i);
-        kilo_append_row(buffer, strlen(buffer));
-    }
+
+	char buf[11] = { 0 };
+	memcpy(buf, flash_target_contents, 10);
+
+	const char *line_start = flash_target_contents;
+	int line_length = 0;
+	while (line_start[line_length] != 0) {
+    	if (line_start[line_length] == '\r' || line_start[line_length] == '\n') {
+        	kilo_insert_row(E.num_rows, line_start, line_length-1);
+        	line_start += line_length + 1;
+        	line_length = 0;
+        	continue;
+    	}
+    	line_length++;
+	}
+
+	kilo_set_status_message("%s", buf);
+	E.dirty = 0;
 }
+
+
+char *kilo_rows_to_string(int *buflen) {
+    int totlen = 0;
+    for (int j = 0; j < E.num_rows; j++) {
+        totlen += E.row[j].size + 1;
+    }
+    *buflen = totlen;
+    char *buf = malloc(totlen);
+    char *p = buf;
+    for (int j = 0; j < E.num_rows; j++) {
+        memcpy(p, E.row[j].chars, E.row[j].size);
+        p += E.row[j].size;
+        *p = '\n';
+        p++;
+    }
+    return buf;
+}
+
+void kilo_save() {
+    //if (E.filename == NULL) {
+	//	return;
+	//}
+
+	char tmp[11] = { 0 };
+	int len;
+	char *buf = kilo_rows_to_string(&len);
+	memcpy(tmp, buf, 10);
+
+	flash_range_program(FLASH_TARGET_OFFSET, buf, FLASH_PAGE_SIZE);
+const uint8_t *flash_target_contents = (const uint8_t *) (XIP_BASE + FLASH_TARGET_OFFSET);
+	int failed = 0;
+	for (int i=0; i<len; i++) {
+    	if (buf[i] != flash_target_contents[i]) {
+        	failed++;
+    	}
+	}
+
+	kilo_set_status_message("%d %d %d %s", failed, len, FLASH_PAGE_SIZE, tmp);
+
+	E.dirty = 0;
+	free(buf);
+
+}
+
 
 /* INIT */
 
@@ -131,6 +288,7 @@ void kilo_init() {
     E.num_rows = 0;
     E.screen_cols = MODE0_WIDTH;
     E.screen_rows = MODE0_HEIGHT-2;
+    E.dirty = 0;
     E.row = NULL;
     E.filename = NULL;
     E.statusmsg[0] = '\0';
@@ -178,7 +336,7 @@ int kilo_read_key() {
         case 30: return ARROW_UP;
         case 31: return ARROW_DOWN;
     }
-    
+
     return ch;
 }
 
@@ -215,7 +373,7 @@ void kilo_move_cursor(int key) {
             }
             break;
     }
-    
+
     // snap cursor to the end of the line when changing lines
     row = (E.cy >= E.num_rows) ? NULL : &E.row[E.cy];
     int row_len = row ? row->size : 0;
@@ -225,19 +383,48 @@ void kilo_move_cursor(int key) {
 }
 
 void kilo_process_keypress() {
-    int c = kilo_read_key();
+	static int quit_times = KILO_QUIT_TIMES;
+
+	int c = kilo_read_key();
     switch (c) {
+        case 0:
+            return;
+        case '\r':
+            kilo_insert_newline();
+            break;
+
         case CTRL_KEY('q'):
+        	if (E.dirty && quit_times > 0) {
+				kilo_set_status_message("WARNING! File has unsaved changes. "
+					"Press Ctrl-Q %d more times to quit.", quit_times);
+				quit_times--;
+				return;
+        	}
             kilo_die("User terminated program.");
             break;
-            
+
+        case CTRL_KEY('s'):
+        	kilo_save();
+        	break;
+
+        case CTRL_KEY('o'):
+        	kilo_open();
+        	break;
+
+        case BACKSPACE:
+        case CTRL_KEY('h'):
+        case DEL_KEY:
+			if (c == DEL_KEY) kilo_move_cursor(ARROW_RIGHT);
+			kilo_del_char();
+			break;
+
         case ARROW_LEFT:
         case ARROW_RIGHT:
         case ARROW_UP:
         case ARROW_DOWN:
           kilo_move_cursor(c);
           break;
-            
+
         case HOME_KEY:
             E.cx = 0;
             break;
@@ -253,10 +440,18 @@ void kilo_process_keypress() {
                 kilo_move_cursor(c == PAGE_UP ? ARROW_UP : ARROW_DOWN);
         }
             break;
-            
+        case CTRL_KEY('l'):
+        case '\x1b':
+        	break;
+
+        default:
+            kilo_insert_char(c);
+            break;
+
     }
-    
-    
+
+	quit_times = KILO_QUIT_TIMES;
+
     if (iscntrl(c)) {
         printf("%d\n", c);
     } else {
@@ -297,11 +492,11 @@ void kilo_draw_rows() {
                 char welcome[80];
                 int welcome_len = snprintf(welcome, sizeof(welcome),
                                            "Kilo editor -- version %s", KILO_VERSION);
-                
+
                 if (welcome_len > E.screen_cols)
                     welcome_len = E.screen_cols;
                 welcome[79] = 0;
-                
+
                 int padding = (E.screen_cols - welcome_len) / 2;
                 if (padding) {
                     kilo_write("~", 1);
@@ -309,7 +504,7 @@ void kilo_draw_rows() {
                 }
                 while (padding--)
                     kilo_write(" ", 1);
-                
+
                 kilo_write(welcome, welcome_len);
             } else {
                 kilo_write("~", 1);
@@ -328,10 +523,12 @@ void kilo_draw_status_bar() {
     mode0_set_background(MODE0_WHITE);
     mode0_set_foreground(MODE0_BLACK);
     mode0_set_cursor(0, E.screen_rows-1);
-    
+
     char status[80], rstatus[80];
-    int len = snprintf(status, sizeof(status), "%.20s - %d lines",
-                       E.filename ? E.filename : "[No Name]", E.num_rows);
+ 	int len = snprintf(status, sizeof(status), "%.20s - %d lines %s",
+    	E.filename ? E.filename : "[No Name]", E.num_rows,
+    	E.dirty ? "(modified)" : "");
+
     int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d",
                         E.cy + 1, E.num_rows);
     if (len > E.screen_cols) len = E.screen_cols;
@@ -345,7 +542,7 @@ void kilo_draw_status_bar() {
             len++;
         }
     }
-    
+
     mode0_set_background(MODE0_BLACK);
     mode0_set_foreground(MODE0_WHITE);
 }
@@ -384,9 +581,9 @@ int main() {
     mode0_init();
     stdio_init_all();
     kilo_init();
-    kilo_open();
+    // kilo_open();
 
-    kilo_set_status_message("HELP: Ctrl-Q = quit");
+    kilo_set_status_message("HELP: Ctrl-S = save | Ctrl-Q = quit");
 
     
     while (1) {
