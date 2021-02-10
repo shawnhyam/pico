@@ -10,7 +10,8 @@
 
 // We're going to erase and reprogram a region 256k from the start of flash.
 // Once done, we can access this at XIP_BASE + 256k.
-#define FLASH_TARGET_OFFSET (256 * 1024)
+#define FLASH_TARGET_OFFSET (770 * 1024)
+const uint8_t *flash_target_contents = (const uint8_t *) (XIP_BASE + FLASH_TARGET_OFFSET);
 
 /* DEFINES */
 #define KILO_VERSION "0.0.1"
@@ -57,17 +58,16 @@ typedef struct  {
     char *filename;
     char statusmsg[80];
     absolute_time_t statusmsg_time;
-
-    //struct termios orig_termios;
 } editor_config_t;
 
 static editor_config_t E;
 
-/* PROTOTYPES */
 
+/* PROTOTYPES */
 
 void kilo_set_status_message(const char *fmt, ...);
 void kilo_init();
+void kilo_refresh_screen();
 
 /* ROW OPERATIONS*/
 
@@ -203,32 +203,33 @@ void kilo_del_char() {
     }
 }
 
+
 /* FILE?? I/O */
 
 void kilo_open() {
 	kilo_init();
 
-    const uint8_t *flash_target_contents = (const uint8_t *) (XIP_BASE + FLASH_TARGET_OFFSET);
-
 	free(E.filename);
     E.filename = strdup("filename.txt");
 
-	char buf[11] = { 0 };
-	memcpy(buf, flash_target_contents, 10);
+	char buf[21] = { 0 };
+	memcpy(buf, flash_target_contents, 20);
 
-	const char *line_start = flash_target_contents;
-	int line_length = 0;
-	while (line_start[line_length] != 0) {
-    	if (line_start[line_length] == '\r' || line_start[line_length] == '\n') {
-        	kilo_insert_row(E.num_rows, line_start, line_length-1);
-        	line_start += line_length + 1;
-        	line_length = 0;
-        	continue;
-    	}
-    	line_length++;
+	const char *line = flash_target_contents;
+	int idx = 0;
+	//const char foo[] = "Hello World.\nLet's see if this will load properly.\n";
+	//const cha[Br *line_start = foo;
+	while (line[idx] != '\0') {
+		if (line[idx] == '\r' || line[idx] == '\n') {
+	    	kilo_insert_row(E.num_rows, line, idx);
+    		line += idx;
+    		line += 1;
+    		idx = 0;
+		} else {
+    		idx++;
+		}
 	}
 
-	kilo_set_status_message("%s", buf);
 	E.dirty = 0;
 }
 
@@ -255,13 +256,13 @@ void kilo_save() {
 	//	return;
 	//}
 
-	char tmp[11] = { 0 };
+	char tmp[FLASH_PAGE_SIZE] = { 0 };
 	int len;
 	char *buf = kilo_rows_to_string(&len);
-	memcpy(tmp, buf, 10);
+	memcpy(tmp, buf, len);
 
-	flash_range_program(FLASH_TARGET_OFFSET, buf, FLASH_PAGE_SIZE);
-const uint8_t *flash_target_contents = (const uint8_t *) (XIP_BASE + FLASH_TARGET_OFFSET);
+	flash_range_program(FLASH_TARGET_OFFSET, tmp, FLASH_PAGE_SIZE);
+
 	int failed = 0;
 	for (int i=0; i<len; i++) {
     	if (buf[i] != flash_target_contents[i]) {
@@ -269,7 +270,7 @@ const uint8_t *flash_target_contents = (const uint8_t *) (XIP_BASE + FLASH_TARGE
     	}
 	}
 
-	kilo_set_status_message("%d %d %d %s", failed, len, FLASH_PAGE_SIZE, tmp);
+	kilo_set_status_message("%d %d", failed, len);
 
 	E.dirty = 0;
 	free(buf);
@@ -297,16 +298,6 @@ void kilo_init() {
     mode0_show_cursor();
 }
 
-/* */
-// get character from input
-// show ascii code for character on the display
-// repeat
-
-//void kilo_print(const char *s) {
-//    mode0_print(s);
-//    printf("%s", s);
-//}
-
 void kilo_write(const char *s, int len) {
     mode0_write(s, len);
 }
@@ -318,7 +309,7 @@ void kilo_die(const char *s) {
     mode0_set_foreground(MODE0_WHITE);
     mode0_print(s);
     mode0_end();
-    
+
     while(1) {
         sleep_ms(1000);
     }
@@ -329,7 +320,7 @@ void kilo_die(const char *s) {
 int kilo_read_key() {
     int ch = getchar_timeout_us(100 * 1000);
     if (ch == PICO_ERROR_TIMEOUT) { return 0; }
-    
+
     switch (ch) {
         case 28: return ARROW_LEFT;
         case 29: return ARROW_RIGHT;
@@ -559,12 +550,12 @@ void kilo_draw_message_bar() {
 void kilo_refresh_screen() {
     mode0_begin();
     mode0_clear(MODE0_BLACK);
-    
+
     kilo_scroll();
     kilo_draw_rows();
     kilo_draw_status_bar();
     kilo_draw_message_bar();
-    
+
     mode0_set_cursor(E.rx - E.col_offset, E.cy - E.row_offset);
     mode0_end();
 }
@@ -585,11 +576,10 @@ int main() {
 
     kilo_set_status_message("HELP: Ctrl-S = save | Ctrl-Q = quit");
 
-    
     while (1) {
         kilo_refresh_screen();
         kilo_process_keypress();
     }
-    
+
     return 0;
 }

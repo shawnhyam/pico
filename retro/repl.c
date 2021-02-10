@@ -21,8 +21,9 @@
 #include "pico/stdlib.h"
 #include "pico/printf.h"
 #include <string.h>
-#include <stdint.h>
+//#include <stdint.h>
 #include <limits.h>
+#include "../ili9341/text_mode.h"
 
 /*---------------------------------------------------------------------
   First, a few constants relating to the image format and memory
@@ -121,7 +122,13 @@ int validate_opcode_bundle(CELL opcode);
 void retro_puts(char *s) {
   //write(1, s, strlen(s));
     printf("%s", s);
-    
+    print(s);
+}
+
+void retro_putc(int c, FILE *stream) {
+    putc(c, stream);
+    char s[2] = { c, 0 };
+    print(s);
 }
 
 
@@ -348,8 +355,11 @@ int not_eol(int ch) {
 void read_token(FILE *file, char *token_buffer, int echo) {
   int ch, count;
   ch = getc(file);
-  if (echo != 0)
+    if (echo != 0) {
     putchar(ch);
+        char s[2] = { ch, 0 };
+        print(s);
+    }
   count = 0;
   while (not_eol(ch))
   {
@@ -364,8 +374,11 @@ void read_token(FILE *file, char *token_buffer, int echo) {
       token_buffer[count++] = ch;
     }
     ch = getc(file);
-    if (echo != 0)
+      if (echo != 0) {
       putchar(ch);
+          char s[2] = { ch, 0 };
+          print(s);
+      }
   }
   token_buffer[count] = '\0';
 }
@@ -384,6 +397,7 @@ void read_token(FILE *file, char *token_buffer, int echo) {
 
 int main() {
     stdio_init_all();
+    text_mode_init();
     
   char input[1024];
   prepare_vm();
@@ -396,8 +410,9 @@ int main() {
     if (strcmp(input, "bye") == 0)
       //exit(0);
         ;
-    else
+    else {
       evaluate(input);
+    }
   }
   //exit(0);
 }
@@ -631,7 +646,7 @@ void inst_iq() {
 
 void inst_ii() {
   inst_dr();
-  putc(stack_pop(), stdout);
+  retro_putc(stack_pop(), stdout);
   fflush(stdout);
 }
 
