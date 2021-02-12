@@ -1,11 +1,3 @@
-cmake_minimum_required(VERSION 3.12)
-
-include(pico_sdk_import.cmake)
-
-project(ili9341)
-
-pico_sdk_init()
-
 # MODE 1
 add_executable(mode1_demo
     font.c

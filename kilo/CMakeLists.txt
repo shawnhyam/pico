@@ -1,11 +1,3 @@
-cmake_minimum_required(VERSION 3.12)
-
-include(pico_sdk_import.cmake)
-
-project(kilo)
-
-pico_sdk_init()
-
 add_executable(kilo
     ../ili9341/mode0.c
     ../ili9341/ili9341.c
