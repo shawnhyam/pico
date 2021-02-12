@@ -3,7 +3,7 @@
 #include <string.h>
 #include "pico/stdlib.h"
 #include "hardware/spi.h"
-#include "ili9341.h"
+#include "ili9341/ili9341.h"
 
 /*
  

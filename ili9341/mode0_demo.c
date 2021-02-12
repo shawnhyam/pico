@@ -1,5 +1,5 @@
 #include "pico/stdlib.h"
-#include "mode0.h"
+#include "mode0/mode0.h"
 
 
 int main() {

@@ -1,7 +1,7 @@
 #include "pico/stdlib.h"
 #include "pico/printf.h"
 
-#include "../ili9341/mode0.h"
+#include "mode0/mode0.h"
 #include "pico/stdio.h"
 #include <ctype.h>
 #include <stdlib.h>  // ??

@@ -1,6 +1,4 @@
 add_executable(kilo
-    ../ili9341/mode0.c
-    ../ili9341/ili9341.c
     kilo.c
 )
 
@@ -8,4 +6,4 @@ add_executable(kilo
 
 pico_enable_stdio_usb(kilo 1)
 pico_add_extra_outputs(kilo)
-target_link_libraries(kilo pico_stdlib pico_mem_ops pico_malloc hardware_spi hardware_flash)
+target_link_libraries(kilo mode0 pico_stdlib pico_mem_ops pico_malloc hardware_spi hardware_flash)
