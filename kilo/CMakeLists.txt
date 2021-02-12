@@ -1,5 +1,6 @@
 add_executable(kilo
     kilo.c
+	kilo_platform_mode0.c
 )
 
 # add_definitions("-Wall -Wextra -pedantic -std=c99")
