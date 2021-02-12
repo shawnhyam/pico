@@ -9,6 +9,10 @@ The beginnings of a library to drive a 128x32 SSD1306 OLED display.
 
 Simple code to drive a 320x240 ILI9341 LCD display; a text graphics mode, called `mode0` that is used in a basic text editor; and the beginnings of a sprite graphics mode called `mode1` that supports slightly-better-than-NES graphics and horizontal scrolling.
 
+### Mode 0
+
+Mode 0 is a text-only mode that divides the screen up into 6x10 pixels tiles (so 53x24). There can be 256 Tiles defined in a 1-bit-per-pixel format. Each screen location specifies which Tile to display (1 byte) along with a foreground and background color (from a global 16 color palette, so 1 byte per grid).
+
 ### Mode 1
 
 The general idea of Mode 1 is:
