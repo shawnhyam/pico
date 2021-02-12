@@ -11,7 +11,7 @@ Simple code to drive a 320x240 ILI9341 LCD display; a text graphics mode, called
 
 ## kilo
 
-A quick port of the Kilo text editor to the Pico. The Kilo editor is featured here:
+A quick port of the Kilo text editor to the Pico. This version is built for a 320x240 ILI9341-based LCD instead of the Unix terminal. The Kilo editor is featured here:
 * https://github.com/antirez/kilo
 * https://viewsourcecode.org/snaptoken/kilo/
 
