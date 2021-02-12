@@ -1,6 +1,8 @@
 #ifndef _ILI9341_H
 #define _ILI9341_H
 
+#include <stdint.h>
+
 #define SPI_PORT spi0
 #define PIN_MISO 4
 #define PIN_CS   5
@@ -74,6 +76,7 @@
 
 extern const uint8_t font6x8[];
 
+void ili9341_init();
 void ili9341_set_command(uint8_t cmd);
 void ili9341_command_param(uint8_t data);
 void ili9341_write_data(void *buffer, int bytes);
