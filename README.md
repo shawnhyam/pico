@@ -42,7 +42,7 @@ Sprites aren't started yet, but:
 
 ## kilo
 
-A quick port of the Kilo text editor to the Pico. This version is built for a 320x240 ILI9341-based LCD instead of the Unix terminal. The Kilo editor is featured here:
+A quick port of the Kilo text editor to the Pico. This version is built for a 320x240 ILI9341-based LCD (using Mode 0, above) instead of the Unix terminal. The Kilo editor is featured here:
 * https://github.com/antirez/kilo
 * https://viewsourcecode.org/snaptoken/kilo/
 
