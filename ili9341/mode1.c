@@ -11,7 +11,7 @@ uint8_t background[MAP_HEIGHT * MAP_WIDTH] = { 0 };
 uint8_t bg_palette[MAP_HEIGHT * MAP_WIDTH] = { 0 };
 uint16_t scroll_offset;  // this is in 'map' pixels, not 'screen' pixels
 uint8_t height_offset = 0;  // (maybe?) in map blocks (8 pixels)
-
+uint16_t *palette[8];
 
 
 void mode1_init() {

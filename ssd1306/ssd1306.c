@@ -1,15 +1,8 @@
 #include <stdint.h>
 #include <string.h>
-#include "hardware/i2c.h"
 #include "ssd1306.h"
 
 extern const uint8_t ssd1306_font6x8[];
-
-//# MicroPython SSD1306 OLED driver, I2C and SPI interfaces
-
-//from micropython import const
-//import framebuf
-
 
 #define SET_CONTRAST 0x81
 #define SET_ENTIRE_ON 0xA4
@@ -29,14 +22,21 @@ extern const uint8_t ssd1306_font6x8[];
 #define SET_VCOM_DESEL 0xDB
 #define SET_CHARGE_PUMP 0x8D
 
-#define I2C_PORT i2c0
+
+#define HEIGHT 32
+#define WIDTH 128
+#define PAGES (HEIGHT/8)
+
 #define SID 0x3C // I2C 1306 slave ID
+
+static uint8_t buffer[PAGES*WIDTH+1] = { 0x40, 0 };
+static i2c_inst_t *i2c_inst;
 
 void send2(uint8_t v1, uint8_t v2) {
     uint8_t buf[2];
     buf[0] = v1;
     buf[1] = v2;
-    i2c_write_blocking(I2C_PORT, SID, buf, 2, false);
+    i2c_write_blocking(i2c_inst, SID, buf, 2, false);
 }
 
 void write_cmd(uint8_t cmd) {
@@ -44,7 +44,7 @@ void write_cmd(uint8_t cmd) {
 }
 
 
-void show_scr(uint8_t scr[]) {
+void ssd1306_display(uint8_t *buffer) {
     //write_cmd(SET_MEM_ADDR); // 0x20
     write_cmd(0b01); // vertical addressing mode
 
@@ -56,37 +56,101 @@ void show_scr(uint8_t scr[]) {
     write_cmd(0);
     write_cmd(7);
 
-    scr[0] = 0x40; // the data instruction
-    i2c_write_blocking(I2C_PORT, SID, scr, PAGES*WIDTH+1, false);
+    i2c_write_blocking(i2c_inst, SID, buffer, PAGES*WIDTH+1, false);
 }
 
+// for example: i2c0, 16, 17, 1024*1024
+uint ssd1306_init(i2c_inst_t *i2c, uint sda, uint scl, uint baud_rate) {
+	i2c_inst = i2c;
+
+	// set up the i2c connection
+	uint actual_baud_rate = i2c_init(i2c, baud_rate);
+	gpio_set_function(sda, GPIO_FUNC_I2C);
+	gpio_set_function(scl, GPIO_FUNC_I2C);
+	gpio_pull_up(sda);
+	gpio_pull_up(scl);
+
+	// initialize the display
+	const bool external_vcc = false;
+
+	uint8_t cmds[] = {
+		SET_DISP | 0x00,  // display off 0x0E | 0x00
+
+		SET_MEM_ADDR, // 0x20
+		0x00,  // horizontal
+
+		//# resolution and layout
+		SET_DISP_START_LINE | 0x00, // 0x40
+		SET_SEG_REMAP | 0x01,  //# column addr 127 mapped to SEG0
+
+		SET_MUX_RATIO, // 0xA8
+		0x1f,
+
+		SET_COM_OUT_DIR | 0x08,  //# scan from COM[N] to COM0  (0xC0 | val)
+		SET_DISP_OFFSET, // 0xD3
+		0x00,
+
+		SET_COM_PIN_CFG, // 0xDA
+        0x02,
+		//0x02 if self.width > 2 * self.height else 0x12,
+		//width > 2*height ? 0x02 : 0x12,
+		//SET_COM_PIN_CFG, height == 32 ? 0x02 : 0x12,
+
+		//# timing and driving scheme
+		SET_DISP_CLK_DIV, // 0xD5
+		0x80,
+
+		SET_PRECHARGE,
+		//0x22 if self.external_vcc else 0xF1,
+		external_vcc ? 0x22 : 0xF1,
+
+		SET_VCOM_DESEL,
+		//0x30,  //# 0.83*Vcc
+		0x40, // changed by mcarter
+
+		//# display
+		SET_CONTRAST, // 0x81
+		0xFF,  //# maximum
+
+		SET_ENTIRE_ON,  //# output follows RAM contents // 0xA4
+		SET_NORM_INV,  //# not inverted 0xA6
+
+		SET_CHARGE_PUMP, // 0x8D
+		//0x10 if self.external_vcc else 0x14,
+		external_vcc ? 0x10 : 0x14,
+
+		SET_DISP | 0x01
+	};
+
+    i2c_write_blocking(i2c, SID, cmds, sizeof(cmds), false);
+	return actual_baud_rate;
+}
 
 void view_init(View *view) {
     view->cursor_x = 0;
     view->cursor_y = 0;
     view->scroll_y = 0;
-    memset(view->render, 0, PAGES*WIDTH+1);
     memset(view->map, 0, VIEW_PAGES*VIEW_WIDTH);
 }
 
 void view_render(View *view) {
-    // for now, we have to be page-aligned
+    // for now, we have to be page-aligned and horizontal scroll isn't implemented
     assert(view->scroll_y % 8 == 0);
-    
-    view->render[0] = 0x40;
+    assert(view->scroll_x == 0);
+
     for (int page=0, map_page = view->scroll_y / 8; page<PAGES; page++, map_page++) {
         map_page = map_page % VIEW_PAGES;  // wrap around
-        memcpy(view->render + page*WIDTH+1, view->map + map_page*VIEW_WIDTH, WIDTH);
+        memcpy(buffer + page*WIDTH+1, view->map + map_page*VIEW_WIDTH, WIDTH);
     }
-    
-    show_scr(view->render);
+
+	ssd1306_display(buffer);
 }
 
 void view_clear(View *view) {
     memset(view->map, 0, VIEW_PAGES*VIEW_WIDTH);
 }
 
-void view_draw_pixel(View* view, int16_t x, int16_t y, int color) {
+void view_draw_pixel(View* view, int16_t x, int16_t y, int8_t color) {
     if (x<0 || x >= VIEW_WIDTH || y<0 || y>= VIEW_HEIGHT) return;
 
     int page = y/8;
@@ -138,7 +202,6 @@ void view_print(View *view, const char* str) {
 
 
 
-const bool external_vcc = false;
 
 static uint8_t scr[PAGES*WIDTH+1]; // extra byte holds data send instruction
 
@@ -147,24 +210,6 @@ void fill_scr(uint8_t* scr, uint8_t v) {
 }
 
 
-
-
-
-
-#if 0
-/* Original Python code:
-   def write_cmd(self, cmd):
-   self.temp[0] = 0x80  # Co=1, D/C#=0
-   self.temp[1] = cmd
-   self.i2c.writeto(self.addr, self.temp)
-   */
-void write_cmds(uint8_t* cmds, int n)
-{
-	for(int i=0; i<n; i++)
-		write_cmd(cmds[i]);
-}
-#endif
-
 void poweroff() { write_cmd(SET_DISP | 0x00); }
 
 void poweron() { write_cmd(SET_DISP | 0x01); }
@@ -172,134 +217,6 @@ void poweron() { write_cmd(SET_DISP | 0x01); }
 void contrast(uint8_t contrast) { write_cmd(SET_CONTRAST); write_cmd(contrast); }
 
 void invert(uint8_t invert) { write_cmd(SET_NORM_INV | (invert & 1)); }
-
-
-void init_display()
-{
-    /*
-    const uint8_t cmds [] = {
-        0x00,
-        0xae,
-        0xd5,  // SET_DISP_CLK_DIV
-        0x80,
-        0xa8,  // SET_MUX_RATIO
-        0x1f,
-        0xd3,  // SET_DISP_OFFSET,
-        0x00,
-        0x40,  // SET_DISP_START_LINE
-        0x8d,  // SET_CHARGE_PUMP
-        0x14,
-        0xa1,
-        0xc8,
-        0xda,
-        0x02,
-        0x81,
-        0x7f,
-        0xd9,
-        0xf1,
-        0xdb,
-        0x40,
-        0xa4,
-        0xa6,
-        0xaf
-    };
-*/
-
-	uint8_t cmds[] = {
-		SET_DISP | 0x00,  // display off 0x0E | 0x00
-
-		SET_MEM_ADDR, // 0x20
-		0x00,  // horizontal
-
-		//# resolution and layout
-		SET_DISP_START_LINE | 0x00, // 0x40
-		SET_SEG_REMAP | 0x01,  //# column addr 127 mapped to SEG0
-
-		SET_MUX_RATIO, // 0xA8
-		0x1f,
-
-		SET_COM_OUT_DIR | 0x08,  //# scan from COM[N] to COM0  (0xC0 | val)
-		SET_DISP_OFFSET, // 0xD3
-		0x00,
-
-		SET_COM_PIN_CFG, // 0xDA
-        0x02,
-		//0x02 if self.width > 2 * self.height else 0x12,
-		//width > 2*height ? 0x02 : 0x12,
-		//SET_COM_PIN_CFG, height == 32 ? 0x02 : 0x12,
-
-		//# timing and driving scheme
-		SET_DISP_CLK_DIV, // 0xD5
-		0x80,
-
-		SET_PRECHARGE,
-		//0x22 if self.external_vcc else 0xF1,
-		external_vcc ? 0x22 : 0xF1,
-
-		SET_VCOM_DESEL,
-		//0x30,  //# 0.83*Vcc
-		0x40, // changed by mcarter
-
-		//# display
-		SET_CONTRAST, // 0x81
-		0xFF,  //# maximum
-
-		SET_ENTIRE_ON,  //# output follows RAM contents // 0xA4
-		SET_NORM_INV,  //# not inverted 0xA6
-
-		SET_CHARGE_PUMP, // 0x8D
-		//0x10 if self.external_vcc else 0x14,
-		external_vcc ? 0x10 : 0x14,
-
-		SET_DISP | 0x01
-	};
-
-    i2c_write_blocking(I2C_PORT, SID, cmds, sizeof(cmds), false);
-
-	// write all the commands
-//    for (int i=0; i<sizeof(cmds); i++) {
-//		write_cmd(cmds[i]);
-//    }
-	//fill_scr(scr, 0);
-	//show_scr(scr);
-}
-
-/*
-# Subclassing FrameBuffer provides support for graphics primitives
-# http://docs.micropython.org/en/latest/pyboard/library/framebuf.html
-class SSD1306(framebuf.FrameBuffer):
-def __init__(self, width, height, external_vcc):
-self.width = width
-self.height = height
-self.external_vcc = external_vcc
-self.pages = self.height // 8
-self.buffer = bytearray(self.pages * self.width)
-super().__init__(self.buffer, self.width, self.height, framebuf.MONO_VLSB)
-self.init_display()
-
-
-class SSD1306_I2C(SSD1306):
-def __init__(self, width, height, i2c, addr=0x3C, external_vcc=False):
-self.i2c = i2c
-self.addr = addr
-self.temp = bytearray(2)
-self.write_list = [b"\x40", None]  # Co=0, D/C#=1
-super().__init__(width, height, external_vcc)
-
-def write_data(self, buf):
-self.write_list[1] = buf
-self.i2c.writevto(self.addr, self.write_list)
-*/
-
-uint init_i2c() {
-	// This example will use I2C0 on GPIO4 (SDA) and GPIO5 (SCL)
-	uint baud_rate = i2c_init(I2C_PORT, 1984 * 1000);
-	gpio_set_function(4, GPIO_FUNC_I2C);
-	gpio_set_function(5, GPIO_FUNC_I2C);
-	gpio_pull_up(4);
-	gpio_pull_up(5);
-    return baud_rate;
-}
 
 void draw_pixel(uint8_t* scr, int16_t x, int16_t y, int color)
 {
