@@ -3,6 +3,9 @@ add_library(ssd1306
 	font.c
 )
 
+target_link_libraries(ssd1306 pico_stdlib hardware_i2c)
+target_include_directories(ssd1306 PUBLIC include)
+
 add_executable(ssd1306_demo
     ssd1306_demo.c
 )
@@ -13,5 +16,4 @@ add_executable(ssd1306_demo
 # create map/bin/hex file etc.
 pico_add_extra_outputs(ssd1306_demo)
 
-target_link_libraries(ssd1306 pico_stdlib hardware_i2c)
 target_link_libraries(ssd1306_demo ssd1306 pico_stdlib hardware_i2c)

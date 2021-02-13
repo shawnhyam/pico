@@ -29,6 +29,7 @@ void view_clear(View *view);
 void view_draw_pixel(View *view, int16_t x, int16_t y, int8_t color);
 void view_draw_letter_at(View *view, uint8_t x, uint8_t y, char c);
 void view_print(View *view, const char* str);
+void view_write(View *view, const char* str, int len);
 void view_render(View *view);
 
 #endif

@@ -1,4 +1,4 @@
-#include "ssd1306.h"
+#include "ssd1306/ssd1306.h"
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
 

@@ -1,6 +1,6 @@
 #include <stdint.h>
 #include <string.h>
-#include "ssd1306.h"
+#include "ssd1306/ssd1306.h"
 
 extern const uint8_t ssd1306_font6x8[];
 
@@ -200,7 +200,18 @@ void view_print(View *view, const char* str) {
     }
 }
 
-
+void view_write(View *view, const char* str, int len) {
+    while (len--) {
+        char c = *str++;
+        if (c == '\n') {
+            view->cursor_x = 0;
+            view->cursor_y += 8;
+            continue;
+        }
+        view_draw_letter_at(view, view->cursor_x, view->cursor_y, c);
+        view->cursor_x += 6;
+    }
+}
 
 
 static uint8_t scr[PAGES*WIDTH+1]; // extra byte holds data send instruction

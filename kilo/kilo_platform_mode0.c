@@ -103,27 +103,6 @@ void kilo_draw_message_bar() {
         mode0_write(E.statusmsg, msglen);
 }
 
-void kilo_scroll() {
-    E.rx = 0;
-    if (E.cy < E.num_rows) {
-        E.rx = kilo_row_cx_to_rx(&E.row[E.cy], E.cx);
-    }
-
-    if (E.cy < E.row_offset) {
-        E.row_offset = E.cy;
-    }
-    if (E.cy >= E.row_offset + E.screen_rows) {
-        E.row_offset = E.cy - E.screen_rows + 1;
-    }
-    if (E.rx < E.col_offset) {
-        E.col_offset = E.rx;
-    }
-    if (E.rx >= E.col_offset + E.screen_cols) {
-        E.col_offset = E.rx - E.screen_cols + 1;
-    }
-}
-
-
 void kilo_refresh_screen() {
     mode0_begin();
     mode0_clear(MODE0_BLACK);

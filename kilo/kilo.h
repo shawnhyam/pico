@@ -31,6 +31,6 @@ typedef struct  {
 editor_config_t E;
 
 int kilo_row_cx_to_rx(erow_t *row, int cx);
-
+void kilo_scroll();
 
 #endif
