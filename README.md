@@ -40,6 +40,10 @@ Sprites aren't started yet, but:
   * palette-index: 3 bits
   * (further ahead) layer: 1 bit
 
+### Mode 2
+
+Mode 2 is a 320x240 pixel framebuffer, with 16 bits per pixel (so ~150kB). Will eventually be adding drawing primitives; for now there is just a simple rectangle function.
+
 ## kilo
 
 A quick port of the Kilo text editor to the Pico. This version is built for a 320x240 ILI9341-based LCD (using Mode 0, above) instead of the Unix terminal. The Kilo editor is featured here:

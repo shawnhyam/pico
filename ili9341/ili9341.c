@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <string.h>
 #include "pico/stdlib.h"
-#include "hardware/spi.h"
 #include "ili9341/ili9341.h"
 
 /*
@@ -19,68 +18,77 @@
  
  */
 
+ili9341_config_t ili9341_config = {
+	.port = spi0,
+	.pin_miso = 4,
+	.pin_cs = 5,
+	.pin_sck = 6,
+	.pin_mosi = 7,
+	.pin_reset = 8,
+	.pin_dc = 9
+};
 
 static inline void cs_select() {
     asm volatile("nop \n nop \n nop");
-    gpio_put(PIN_CS, 0);  // Active low
+    gpio_put(ili9341_config.pin_cs, 0);  // Active low
     asm volatile("nop \n nop \n nop");
 }
 
 static inline void cs_deselect() {
     asm volatile("nop \n nop \n nop");
-    gpio_put(PIN_CS, 1);
+    gpio_put(ili9341_config.pin_cs, 1);
     asm volatile("nop \n nop \n nop");
 }
 
 void ili9341_set_command(uint8_t cmd) {
     cs_select();
-    gpio_put(PIN_DC, 0);
-    spi_write_blocking(SPI_PORT, &cmd, 1);
-    gpio_put(PIN_DC, 1);
+    gpio_put(ili9341_config.pin_dc, 0);
+    spi_write_blocking(ili9341_config.port, &cmd, 1);
+    gpio_put(ili9341_config.pin_dc, 1);
     cs_deselect();
 }
 
 void ili9341_command_param(uint8_t data) {
     cs_select();
-    spi_write_blocking(SPI_PORT, &data, 1);
+    spi_write_blocking(ili9341_config.port, &data, 1);
     cs_deselect();
 }
 
 void ili9341_write_data(void *buffer, int bytes) {
     cs_select();
-    spi_write_blocking(SPI_PORT, buffer, bytes);
+    spi_write_blocking(ili9341_config.port, buffer, bytes);
     cs_deselect();
 }
 
 void ili9341_init() {
     // This example will use SPI0 at 0.5MHz.
-    spi_init(SPI_PORT, 500 * 1000);
-    int baudrate = spi_set_baudrate(SPI_PORT, 48000 * 1000);
+    spi_init(ili9341_config.port, 500 * 1000);
+    int baudrate = spi_set_baudrate(ili9341_config.port, 48000 * 1000);
 
-    gpio_set_function(PIN_MISO, GPIO_FUNC_SPI);
-    gpio_set_function(PIN_SCK, GPIO_FUNC_SPI);
-    gpio_set_function(PIN_MOSI, GPIO_FUNC_SPI);
+    gpio_set_function(ili9341_config.pin_miso, GPIO_FUNC_SPI);
+    gpio_set_function(ili9341_config.pin_sck, GPIO_FUNC_SPI);
+    gpio_set_function(ili9341_config.pin_mosi, GPIO_FUNC_SPI);
 
     // Chip select is active-low, so we'll initialise it to a driven-high state
-    gpio_init(PIN_CS);
-    gpio_set_dir(PIN_CS, GPIO_OUT);
-    gpio_put(PIN_CS, 0);
+    gpio_init(ili9341_config.pin_cs);
+    gpio_set_dir(ili9341_config.pin_cs, GPIO_OUT);
+    gpio_put(ili9341_config.pin_cs, 0);
 
     // Reset is active-low
-    gpio_init(PIN_RESET);
-    gpio_set_dir(PIN_RESET, GPIO_OUT);
-    gpio_put(PIN_RESET, 1);
+    gpio_init(ili9341_config.pin_reset);
+    gpio_set_dir(ili9341_config.pin_reset, GPIO_OUT);
+    gpio_put(ili9341_config.pin_reset, 1);
 
     // high = command, low = data
-    gpio_init(PIN_DC);
-    gpio_set_dir(PIN_DC, GPIO_OUT);
-    gpio_put(PIN_DC, 0);
+    gpio_init(ili9341_config.pin_dc);
+    gpio_set_dir(ili9341_config.pin_dc, GPIO_OUT);
+    gpio_put(ili9341_config.pin_dc, 0);
 
 
     sleep_ms(10);
-    gpio_put(PIN_RESET, 0);
+    gpio_put(ili9341_config.pin_reset, 0);
     sleep_ms(10);
-    gpio_put(PIN_RESET, 1);
+    gpio_put(ili9341_config.pin_reset, 1);
 
     ili9341_set_command(0x01);//soft reset
     sleep_ms(100);

@@ -5,6 +5,7 @@ add_library(ili9341
 target_link_libraries(ili9341 pico_stdlib hardware_spi)
 target_include_directories(ili9341 PUBLIC include)
 
+
 # MODE 1 (SPRITE GRAPHICS)
 add_library(mode1
 	mode1.c
@@ -20,6 +21,24 @@ add_executable(mode1_demo
 pico_enable_stdio_usb(mode1_demo 1)
 pico_add_extra_outputs(mode1_demo)
 target_link_libraries(mode1_demo mode1 pico_stdlib hardware_spi)
+
+
+# MODE 2 (FRAMEBUFFER)
+add_library(mode2
+	mode2.c
+)
+
+target_link_libraries(mode2 ili9341 pico_stdlib hardware_spi)
+target_include_directories(mode2 PUBLIC include)
+
+add_executable(mode2_demo
+	mode2_demo.c
+)
+
+pico_enable_stdio_usb(mode2_demo 1)
+pico_add_extra_outputs(mode2_demo)
+target_link_libraries(mode2_demo mode2 pico_stdlib hardware_spi)
+
 
 # MODE 0 (TEXT)
 add_library(mode0
