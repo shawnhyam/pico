@@ -54,16 +54,28 @@ void ili9341_command_param(uint8_t data) {
     cs_deselect();
 }
 
+inline void ili9341_start_writing() {
+    cs_select();
+}
+
 void ili9341_write_data(void *buffer, int bytes) {
     cs_select();
     spi_write_blocking(ili9341_config.port, buffer, bytes);
     cs_deselect();
 }
 
+void ili9341_write_data_continuous(void *buffer, int bytes) {
+    spi_write_blocking(ili9341_config.port, buffer, bytes);
+}
+
+inline void ili9341_stop_writing() {
+    cs_deselect();
+}
+
 void ili9341_init() {
     // This example will use SPI0 at 0.5MHz.
     spi_init(ili9341_config.port, 500 * 1000);
-    int baudrate = spi_set_baudrate(ili9341_config.port, 48000 * 1000);
+    int baudrate = spi_set_baudrate(ili9341_config.port, 75000 * 1000);
 
     gpio_set_function(ili9341_config.pin_miso, GPIO_FUNC_SPI);
     gpio_set_function(ili9341_config.pin_sck, GPIO_FUNC_SPI);
