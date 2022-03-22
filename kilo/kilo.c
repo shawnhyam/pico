@@ -270,7 +270,7 @@ void kilo_init() {
     E.row = NULL;
     E.filename = NULL;
     E.statusmsg[0] = '\0';
-    E.statusmsg_time = 0;
+    E.statusmsg_time = nil_time;
 
     kilo_display_init();
 }

@@ -99,7 +99,7 @@ void kilo_draw_message_bar() {
 
     int msglen = strlen(E.statusmsg);
     if (msglen > E.screen_cols) msglen = E.screen_cols;
-    if (msglen && get_absolute_time() - E.statusmsg_time < 5000000)
+    if (msglen && absolute_time_diff_us(E.statusmsg_time, get_absolute_time()) < 5000000)
         mode0_write(E.statusmsg, msglen);
 }
 
