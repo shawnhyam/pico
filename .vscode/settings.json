@@ -22,6 +22,8 @@
         "flash.h": "c",
         "mode0.h": "c",
         "stdio.h": "c",
-        "malloc.h": "c"
+        "malloc.h": "c",
+        "kilo_platform.h": "c",
+        "stdlib.h": "c"
     }
 }

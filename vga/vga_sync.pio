@@ -1,0 +1,56 @@
+.program	video_hsync
+
+/*
+The hsync program needs the PIO clock to be set at 125MHz/(5*16) = 1.5625 MHz
+ hsync timing:
+    -pixel clock freq = 25 MHz = 125 MHz (pico clock) / 5
+	-front porch width = 16 pixel clock cycles (divide pixel clock frequency
+		by 16 to get 1 PIO clock cycle
+    -sync width = 96 pixel clock cycles (divide pixel clock frequency
+        by 16 to get 6 PIO clock cycles)
+	-back porch width = 48 pixel clock cycles (divide pixel clock frequency
+        by 16 to get 3 PIO clock cycles)
+    -active pixel width = 640 pixel clock cycles (divide pixel clock freq
+        by 16 to get 40 PIO clock cycles)
+
+GPIO 16 is used for hsync
+*/
+
+//public hsync:
+hsync_low:
+	irq 5                   ; 01 cycles - set interupt 5 signaling start of front porch
+	set pins, 0  		    ; 01 cycle  - Turns off GPIO 16, start of hsync pulse
+	irq 4               [4] ; 05 cycles - set an interupt for the vsync counter
+	set pins, 1   		[2] ; 03 cycles - Turns on GPIO 16, end of hsync pulse
+	irq clear 5         [19]; 20 cycles - int 5 goes low signalling end of back porch
+	jmp hsync_low		[19]; 20 cycles - back to trigger the hsync pulse again
+
+// configure the hsync program
+% c-sdk {
+#include "hardware/clocks.h"
+
+static inline void video_hsync_program_init(PIO pio, uint sm, uint offset, uint pin, float freq) {
+    pio_sm_config c = video_hsync_program_get_default_config(offset);
+
+    // Map the hsync set pin group to one pin, namely the `pin`
+    // parameter to this function.
+    sm_config_set_set_pins(&c, pin, 1);
+
+    // Set this pin's GPIO function (connect PIO to the pad)
+    pio_gpio_init(pio, pin);
+
+    // Set the pin direction to output at the PIO
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
+
+	// set the state machine clock rate
+	float div = clock_get_hz(clk_sys) / freq ;  // calculates the clock divider
+	sm_config_set_clkdiv(&c, div);
+
+    // Load our configuration, and jump to the start of the program
+    pio_sm_init(pio, sm, offset, &c);
+
+    // Set the state machine running
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}
+
