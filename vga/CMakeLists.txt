@@ -6,6 +6,7 @@ target_link_libraries(vga
 	pico_stdlib
     hardware_pio
 	hardware_irq
+	hardware_dma
 )
 
 

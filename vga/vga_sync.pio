@@ -18,12 +18,12 @@ GPIO 16 is used for hsync
 
 //public hsync:
 hsync_low:
-	irq 5                   ; 01 cycles - set interupt 5 signaling start of front porch
-	set pins, 0  		    ; 01 cycle  - Turns off GPIO 16, start of hsync pulse
-	irq 4               [4] ; 05 cycles - set an interupt for the vsync counter
-	set pins, 1   		[2] ; 03 cycles - Turns on GPIO 16, end of hsync pulse
-	irq clear 5         [19]; 20 cycles - int 5 goes low signalling end of back porch
-	jmp hsync_low		[19]; 20 cycles - back to trigger the hsync pulse again
+    irq 5                   ; 01 cycle  - horizontal front porch, start blanking
+    set pins, 0             ; 01 cycles - start of hsync pulse
+    irq 4               [4] ; 05 cycles - set an interrupt for vsync counter
+    set pins, 1         [2] ; 03 cycles - end of hsync pulse + horizontal back porch
+    irq clear 5        [19] ; 20 cycles - first half of active area
+    jmp hsync_low      [19] ; 20 cycles - second half of active area
 
 // configure the hsync program
 % c-sdk {
@@ -54,3 +54,157 @@ static inline void video_hsync_program_init(PIO pio, uint sm, uint offset, uint 
 }
 %}
 
+
+
+/*
+**************************
+video_vsync
+**************************
+*/
+
+.program    video_vsync
+
+/*
+The vsync program can have timing at full speed since the counting of the hsync
+pulses is interupt driven.  Set the clock at the full pixel clock freq. of 25 MHz
+or 125MHz/5.
+  vsync timing:
+      -total screen = 525 lines
+	  -front porch (10 lines)
+	  -vsync pulse width = 2 lines (2 hsync pulses)
+      -back porch (33 lines) =
+	  -active lines (480)
+
+GPIO 17 is used for vsync
+*/
+
+//public vsync:
+
+	set y , 9					;  set front porch delay
+fp_delay:
+	wait 1 irq 4				;  wait for each hsync pulse
+	jmp Y-- fp_delay			;  front porch delay
+
+
+
+	set pins, 0   		    	;  drive vsync low
+	wait 1 irq 4				;  wait for the first of two hsync pulses
+    wait 1 irq 4				;  wait for the second of two hsync pulses
+	set pins, 1					;  turn off the vsync pulse (drive high)
+
+
+
+	set y, 31					;  the rest of the 33 lines of back porch delay
+bp_delay:
+	wait 1 irq 4				;  wait for each hsync pulse in back porch
+	jmp Y-- bp_delay			;  back porch delay
+
+	irq clear 0 				;  Clear the blanking flag for end of vert. back porch
+	wait 1 irq 4				;  wait for first of 33 lines for back porch delay
+
+
+	mov y, x					;  Load the counter with active lines value forced into x register
+visible_lines:
+	wait 1 irq 4				;  wait for each hsync pulse
+	jmp Y-- visible_lines		;  count the hsync pulses for visible scan lines
+	irq 0						;  set IRQ 0 to flag start of vertical front porch
+
+
+
+
+// configure the vsync program
+% c-sdk {
+#include "hardware/clocks.h"
+
+static inline void video_vsync_program_init(PIO pio, uint sm, uint offset, uint pin, float freq) {
+
+    pio_sm_config c = video_vsync_program_get_default_config(offset);
+
+    // Map the vsync set pin group to one pin, namely the `pin`
+    // parameter to this function.
+    sm_config_set_set_pins(&c, pin, 1);
+
+    // Set this pin's GPIO function (connect PIO to the pad)
+    pio_gpio_init(pio, pin);
+
+    // Set the pin direction to output at the PIO
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
+
+	// set the state machine clock rate
+	float div = clock_get_hz(clk_sys) / freq ;  // calculates the clock divider
+	sm_config_set_clkdiv(&c, div);
+
+    // Load our configuration, and jump to the start of the program
+    pio_sm_init(pio, sm, offset, &c);
+
+    // Set the state machine running
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}
+
+
+
+
+/*
+**************************
+vid_out
+**************************
+*/
+
+.program    vid_out
+/* The vid_out program reads a value from the transmit fifo and then outputs
+   that to the 15 output pins for the vga display.  Remember that GPIO5 is not
+   used for video; but rather SD_CLK.  For this example, we will just ignore GPIO5
+   and send a 0 to it based on the C program.
+   irq 5 is set by the hsync
+   program and indicates the horizontal blanking time
+*/
+
+//public vout:
+   ; set pins, 1
+vout_start:
+ 	wait 0 irq 0				; wait for end of vertical back porch
+	pull noblock		  		; grabs color to display from tx fifo
+	wait 0 irq 5				; wait until hsycn clears IRQ 5, end of horizontal back porch
+	mov x, osr					; fills x register with value to allow noblock pull to keep info
+	out pins, 16				; alt outputs video color signals to GPIO 0 through 15,
+;								//	GPIO5 will get junk
+
+
+
+
+// configure the vid_out program
+% c-sdk {
+#include "hardware/clocks.h"
+
+static inline void vid_out_program_init(PIO pio, uint sm, uint offset, uint pin, float freq) {
+
+    // Set the pin group GPIO function (connect PIO to the pad)
+    for(uint j=0; j<17; j++) {
+		pio_gpio_init(pio, j);
+	}
+
+    // Set the pin group's direction to output at the PIO
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 16, true);
+
+    pio_sm_config c = vid_out_program_get_default_config(offset);
+
+    // Map the video outputs to 16 pins starting at 'pin'
+	// for the out parameter to this function.
+	sm_config_set_out_pins(&c, pin, 16);
+
+	// set the state machine clock rate
+	float div = clock_get_hz(clk_sys) / freq ;  // calculates the clock divider
+	sm_config_set_clkdiv(&c, div);
+
+	// join both FIFOs to make an 8 word TX FIFO
+	sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
+
+    // Load our configuration, and jump to the start of the program
+    pio_sm_init(pio, sm, offset, &c);
+
+    // Set the state machine running
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}
+ 
