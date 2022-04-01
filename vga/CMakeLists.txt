@@ -7,6 +7,7 @@ target_link_libraries(vga
     hardware_pio
 	hardware_irq
 	hardware_dma
+	pico_scanvideo_dpi
 )
 
 

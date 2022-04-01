@@ -5,12 +5,17 @@
 // #include "hardware/gpio.h"
 #include "hardware/structs/bus_ctrl.h"
 #include <stdio.h>
+#include "pico/scanvideo.h"
 
 // Our assembled PIO program
-#include "vga_sync.pio.h"
+// #include "vga_sync.pio.h"
+
+int main() {
+    return 0;
+}
 
 
-
+#if 0
 #define vid_pio pio0
 
 #define HSYNC_PIN 16
@@ -201,3 +206,4 @@ cyan = 65472, 63519 is magenta,65535 is white, 2015 is yellow
 	}
 }
 
+#endif
