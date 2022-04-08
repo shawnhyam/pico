@@ -4,6 +4,7 @@
             textmode.c
       )
 
+        add_compile_options(-Wall -Wextra -pedantic -Werror -O3)
 
     target_compile_definitions(textmode PRIVATE 
             PICO_SCANVIDEO_MAX_SCANLINE_BUFFER_WORDS=360
@@ -17,6 +18,7 @@
             pico_multicore
             pico_stdlib
             pico_scanvideo_dpi
+            hardware_dma
         )
     
     pico_add_extra_outputs(textmode)
