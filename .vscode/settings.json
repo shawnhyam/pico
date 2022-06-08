@@ -24,6 +24,8 @@
         "stdio.h": "c",
         "malloc.h": "c",
         "kilo_platform.h": "c",
-        "stdlib.h": "c"
+        "stdlib.h": "c",
+        "composable_scanline.h": "c",
+        "coco4.h": "c"
     }
 }

@@ -1,6 +1,14 @@
 # pico
 Raspberry Pico code.
 
+## Building & Running
+
+- use VSCode I guess
+make -j8 <target>
+./code/pico/pico-sdk/src/rp2_common/hardware_clocks/scripts/vcocalc.py 201.4
+
+
+
 ## ssd1306
 
 The beginnings of a library to drive a 128x32 SSD1306 OLED display.

@@ -1,35 +1,92 @@
-#include "pico/stdlib.h"
-#include "hardware/pio.h"
-// #include "hardware/irq.h"
-#include "hardware/dma.h"
-// #include "hardware/gpio.h"
-#include "hardware/structs/bus_ctrl.h"
 #include <stdio.h>
+
+#include "hardware/clocks.h"
+#include "pico/stdlib.h"
+#include "pico/multicore.h"
 #include "pico/scanvideo.h"
+#include "pico/scanvideo/composable_scanline.h"
 
-// Our assembled PIO program
-// #include "vga_sync.pio.h"
+static semaphore_t video_initted;
 
-int main() {
-    return 0;
-}
+// Palette
+// There is a palette of 256 entries, each entry contains a 16-bit color
+// memory = 512B
 
-
-#if 0
-#define vid_pio pio0
-
-#define HSYNC_PIN 16
-#define VSYNC_PIN 17
-#define VID_PIN 0
-
-#define PIXELS_PER_LINE 640
-#define ACTIVE_LINES_PER_FRAME 479
+// Might be better to have Layer 1 as bitmap, and Layer 2 as tiles
 
 
-uint dma_chan;
-uint16_t line_buffer[PIXELS_PER_LINE];
-uint16_t empty_line_buffer[PIXELS_PER_LINE];
+// Layer 1: TILES / CHARACTERS
+// Layer 1a: CHARACTER MODE
+// 80x30 grid of tiles, each tile can be one of 256 patterns, each pattern is 8x16@1bpp
+// 80x30 grid of colors, each 8-bit color entry contains a 4-bit index into palette for fg and bg
+// tile map = 2400B, pattern map = 256*16 = 4kB
+// consider defining an xoffset for each scanline, and wraparound behaviour... maybe a yoffset for each column?
+// consider 80x40 grid instead, 8x12 @ 1bpp
 
+// location of tile data; hoffset, voffset in pixels (position of 0,0)
+// horizontal stride; number of bytes to increment when going to the next line
+// height; determines wraparound???
+// could also determine visible region to draw, a subset of the 80x30 (or 80x40) region
+// i.e. hstride 128; height 64 (rows of 16 pixels); hoffset 13 (pixels); voffset 29 (pixels); all uint8_t ??
+// i.e. hstride 80; height 40; hoffset 0; voffset 0
+// wraps around in both horizontal & vertical directions
+// can set the pixel height of each row? 12-16? (12 might be a squeeze...) would have to include info about where to slice the font data
+
+
+
+// goal: read SD card, play tones, and update display all at the same time
+// 
+
+
+
+
+// Layer 1b: TILE MODE
+// 40x30 grid of tiles, each tile can be one of 256 patterns, each pattern is 16x16@4bpp??
+// tile map = 1200B, tile colors = ???, pattern map = 256*128 = 32kB
+
+
+// Layer 2: BITMAP
+// Want to be either 320x240@8bpp, or 640x480@2bpp...
+// memory = 75kB
+// could also be more "flexible" here... being able to define the start memory address for each scanline,
+// and maybe the behaviour for wrapping around... could default to show a normal image but you could mess with it
+// 
+
+const scanvideo_timing_t my_vga_mode_640x480_60 =
+        {
+                .clock_freq = 25200000,
+
+                .h_active = 640,
+                .v_active = 480,
+
+                .h_front_porch = 16,
+                .h_pulse = 64,
+                .h_total = 800,
+                .h_sync_polarity = 1,
+
+                .v_front_porch = 1,
+                .v_pulse = 2,
+                .v_total = 525,
+                .v_sync_polarity = 1,
+
+                .enable_clock = 0,
+                .clock_polarity = 0,
+
+                .enable_den = 0
+        };
+
+const scanvideo_mode_t my_mode = {
+    .default_timing = &my_vga_mode_640x480_60,
+    .pio_program = &video_24mhz_composable,
+    .width = 640,
+    .height = 480,
+    .xscale = 1,
+    .yscale = 1,
+    .yscale_denominator = 1
+};
+
+
+// TODO move this into a helper library?
 void measure_freqs(void) {
     uint f_pll_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_SYS_CLKSRC_PRIMARY);
     uint f_pll_usb = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_USB_CLKSRC_PRIMARY);
@@ -39,6 +96,10 @@ void measure_freqs(void) {
     uint f_clk_usb = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_USB);
     uint f_clk_adc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_ADC);
     uint f_clk_rtc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_RTC);
+    uint sys_clk = clock_get_hz(clk_sys);
+
+    clock_set_reported_hz(clk_sys, sys_clk);
+
  
     printf("pll_sys  = %dkHz\n", f_pll_sys);
     printf("pll_usb  = %dkHz\n", f_pll_usb);
@@ -47,163 +108,157 @@ void measure_freqs(void) {
     printf("clk_peri = %dkHz\n", f_clk_peri);
     printf("clk_usb  = %dkHz\n", f_clk_usb);
     printf("clk_adc  = %dkHz\n", f_clk_adc);
-    printf("clk_rtc  = %dkHz\n", f_clk_rtc);
- 
-    // Can't measure clk_ref / xosc as it is the ref
+    printf("clk_rtc  = %dkHz\n", f_clk_rtc); 
+    printf("sys_clk  = %dHz\n\n", sys_clk); 
 }
 
-uint h_line_count;
+uint16_t patterns[4][640];
 
-void gpio_callback(uint gpio, uint32_t events) {
-    if (gpio == HSYNC_PIN) { //if horizontal pulse triggered, increment line count
-		if (h_line_count >= 45) {
-			dma_channel_set_read_addr(dma_chan, line_buffer, true) ;// start DMA
-		} else {
-            dma_channel_set_read_addr(dma_chan, empty_line_buffer, true) ;// start DMA
-        }
-		++h_line_count;
-	}
-	else	{  // vsync is the interrupt, "0" is the start of vert front porch
-		h_line_count = 10; // vsync starts 10 lines after the front porch
-        dma_channel_set_read_addr(dma_chan, empty_line_buffer, true) ;// start DMA
-	}
-}
+void draw_scanline_fragment(scanvideo_scanline_buffer_t *buffer) {
+    // figure out 1/32 of the color value
+    uint line_num = scanvideo_scanline_number(buffer->scanline_id);
+    uint frame_num = scanvideo_frame_number(buffer->scanline_id);
 
+    // uint32_t *dst32 = buffer->data;
+    // *dst32++ = COMPOSABLE_COLOR_RUN | 0xffff;
+    // *dst32++ = 637 | COMPOSABLE_RAW_1P_SKIP_ALIGN;
+    // *dst32++ = 0 | COMPOSABLE_EOL_ALIGN;
 
-int main() {
-    // system clock of 201.6 MHz; almost exactly 8x VGA speed (25.2 MHz vs 25.175 MHz)
-    // set_sys_clock_pll(1008000000, 5, 1);
-
-    // system clock of 176.0 MHz; almost exactly 7x VGA speed (25.14 MHz vs 25.175 MHz)
-    // set_sys_clock_pll(1584000000, 3, 3);
-
-    // system clock of 151.2 MHz; almost exactly 6x VGA speed (25.2 MHz vs 25.175 MHz)
-    // set_sys_clock_pll(1512000000, 5, 2);
-
-    // system clock of 126 MHz; almost exactly 5x VGA speed (25.2 MHz vs 25.175 MHz)
-    set_sys_clock_pll(1512000000, 6, 2);
-
-    // system clock of 100.8 MHz; almost exactly 4x VGA speed (25.175 MHz vs 25.175 MHz)
-    // set_sys_clock_pll(1512000000, 5, 3);
-
-	stdio_init_all();
-    measure_freqs(); 
- 
- 	bus_ctrl_hw->priority = BUSCTRL_BUS_PRIORITY_DMA_W_BITS | BUSCTRL_BUS_PRIORITY_DMA_R_BITS;
-
-	// Our assembled programs needs to be loaded into this PIO's instruction
-    // memory. This SDK function will find a location (offset) in the
-    // instruction memory where there is enough space for our program. We need
-    // to remember this location!
-    uint hoffset = pio_add_program(vid_pio, &video_hsync_program);
-	uint voffset = pio_add_program(vid_pio, &video_vsync_program);
-	uint vidoffset = pio_add_program(vid_pio, &vid_out_program);
-	
-	// select the desired state machine clock frequency 
-	float SMv_CLK_FREQ = 25175000;   // vsync
-	float SMh_CLK_FREQ = 25175000 / 16.0;   // hsync
-	float SMvid_CLK_FREQ = 126000000; //vid_out  -- need to match number above
-
-
-    // Find a free state machine on our chosen PIO (erroring if there are
-    // none). Configure it to run our programs, and start it, using the
-    // helper functions we included in our .pio file.
-    uint smh = pio_claim_unused_sm(vid_pio, true);
-	uint smv = pio_claim_unused_sm(vid_pio, true);
-	uint smvid = pio_claim_unused_sm(vid_pio, true);
-
-    // initialize the VGA PIO
-	video_hsync_program_init(vid_pio, smh, hoffset, HSYNC_PIN, SMh_CLK_FREQ);
-	video_vsync_program_init(vid_pio, smv, voffset, VSYNC_PIN, SMv_CLK_FREQ);
-	vid_out_program_init(vid_pio, smvid, vidoffset, VID_PIN, SMvid_CLK_FREQ);
-
-    // All state machines are now running.
-
-    // put the counter value for vsync into the 'x' register of the vsync state machine 
-	pio_sm_put (vid_pio, smv,  ACTIVE_LINES_PER_FRAME); // counter value for vsync
-	pio_sm_exec(vid_pio, smv, pio_encode_pull(false, false));
-	pio_sm_exec(vid_pio, smv, pio_encode_out(pio_x,32));
-
-	// Identify the interupt states
-	gpio_set_irq_enabled_with_callback(HSYNC_PIN, GPIO_IRQ_EDGE_FALL, true, &gpio_callback);
-	gpio_set_irq_enabled(VSYNC_PIN, GPIO_IRQ_EDGE_FALL, true);
-
-	//Set-up the DMA channel to transmit the line_buffer
-    dma_chan = dma_claim_unused_channel(true);
-    dma_channel_config c = dma_channel_get_default_config(dma_chan);
-    channel_config_set_transfer_data_size(&c, DMA_SIZE_16);
-    channel_config_set_dreq(&c,  pio_get_dreq(vid_pio, smvid, true)); //This sets up the dreq for sending data to sm
-	
-	dma_channel_configure(
-        dma_chan,
-        &c,
-        &pio0_hw->txf[smvid], // Write address (smvid transmit FIFO)
-        NULL,      // read pixel data from line buffer
-        PIXELS_PER_LINE,  // Write a line of pixels, then halt and interrupt
-        false            //  don't start yet
-    );
-
-/*
-setup for the test pattern:
-Red is 0 to 31; 31 is pure red
-green is 64 to 2047; 1984 is pure green
-blue is 2048 to 65535; 63488 is pure blue
-cyan = 65472, 63519 is magenta,65535 is white, 2015 is yellow
-*/
-
-	uint color[641] = {
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0,
-        31,1984,63488,65535,2015,63519,65477,0,   31,1984,63488,65535,2015,63519,65477,0
-     };
-    //uint color[8] = { 0, 31, 31, 0, 0, 31, 31, 0 };
-	uint array_counter;
-    for (uint array_counter = 0; array_counter < PIXELS_PER_LINE; array_counter++) {
-        line_buffer[array_counter] = color[array_counter];
-        empty_line_buffer[array_counter] = 0;
+{
+    uint16_t *p = (uint16_t *)buffer->data;
+    if (line_num == 0 || line_num == 479) {
+        *p++ = COMPOSABLE_COLOR_RUN;
+        *p++ = PICO_SCANVIDEO_PIXEL_FROM_RGB5(31, 0, 0);
+        *p++ = 315;
+    *p++ = COMPOSABLE_RAW_1P;
+    *p++ = 0;
+    *p++ = COMPOSABLE_EOL_ALIGN;
+    // *p++ = 0;
+       
+    } else {
+        *p++ = COMPOSABLE_RAW_1P;
+        *p++ = PICO_SCANVIDEO_PIXEL_FROM_RGB5(31, 0, 0);
+        *p++ = COMPOSABLE_COLOR_RUN;
+        *p++ = PICO_SCANVIDEO_PIXEL_FROM_RGB5(3, 3, 3);
+        *p++ = 315;
+        *p++ = COMPOSABLE_RAW_2P;
+        *p++ = PICO_SCANVIDEO_PIXEL_FROM_RGB5(31, 0, 0);
+        *p++ = 0;
+        *p++ = COMPOSABLE_EOL_SKIP_ALIGN;
+        *p++ = 0xffff;
     }
 
-	while(true) {		//idle while DMA and PIO works
-		//sleep_ms(10000);		//for test purposes
- 		// tight_loop_contents	;
-	}
+    buffer->data_used = ((uint32_t *)p) - buffer->data;
 }
 
-#endif
+    {
+         uint16_t *p = (uint16_t *)buffer->data2;
+    if (line_num == 16 || line_num == 463) {
+        *p++ = COMPOSABLE_COLOR_RUN;
+     *p++ = PICO_SCANVIDEO_ALPHA_MASK | PICO_SCANVIDEO_PIXEL_FROM_RGB5(0, 31, 0);
+    *p++ = 637;
+    *p++ = COMPOSABLE_RAW_1P;
+    *p++ = 0;
+    *p++ = COMPOSABLE_EOL_ALIGN;
+    // *p++ = 0;
+       
+    } else {
+        *p++ = COMPOSABLE_RAW_1P;
+        *p++ = PICO_SCANVIDEO_ALPHA_MASK | PICO_SCANVIDEO_PIXEL_FROM_RGB8(255, 0, 0);
+        *p++ = COMPOSABLE_COLOR_RUN;
+        *p++ = PICO_SCANVIDEO_PIXEL_FROM_RGB8(0, 0, 0);
+        *p++ = 635;
+        *p++ = COMPOSABLE_RAW_2P;
+        *p++ = PICO_SCANVIDEO_PIXEL_FROM_RGB8(255, 0, 0);
+        *p++ = 0;
+        *p++ = COMPOSABLE_EOL_SKIP_ALIGN;
+        *p++ = 0xffff;
+    }
+    buffer->data2_used = ((uint32_t *)p) - buffer->data2;
+    }
+
+    {
+         uint16_t *p = (uint16_t *)buffer->data3;
+    if (line_num == 32 || line_num == 447) {
+        *p++ = COMPOSABLE_COLOR_RUN;
+     *p++ = PICO_SCANVIDEO_ALPHA_MASK | PICO_SCANVIDEO_PIXEL_FROM_RGB5(0, 0, 31);
+    *p++ = 637;
+    *p++ = COMPOSABLE_RAW_1P;
+    *p++ = 0;
+    *p++ = COMPOSABLE_EOL_ALIGN;
+    // *p++ = 0;
+       
+    } else {
+        *p++ = COMPOSABLE_RAW_1P;
+        *p++ = PICO_SCANVIDEO_PIXEL_FROM_RGB8(255, 0, 0);
+        *p++ = COMPOSABLE_COLOR_RUN;
+        *p++ = PICO_SCANVIDEO_PIXEL_FROM_RGB8(0, 0, 0);
+        *p++ = 635;
+        *p++ = COMPOSABLE_RAW_2P;
+        *p++ = PICO_SCANVIDEO_PIXEL_FROM_RGB8(255, 0, 0);
+        *p++ = 0;
+        *p++ = COMPOSABLE_EOL_SKIP_ALIGN;
+        *p++ = 0xffff;
+    }
+    buffer->data3_used = ((uint32_t *)p) - buffer->data3;
+    }
+
+
+    buffer->status = SCANLINE_OK;
+}
+
+void core1_func() {
+        uint sys_clk = clock_get_hz(clk_sys);
+
+    // initialize video and interrupts on core 1
+    scanvideo_setup(&my_mode);
+        uint sys_clk2 = clock_get_hz(clk_sys);
+
+    scanvideo_timing_enable(true);
+    sem_release(&video_initted);
+
+    // how can we support a configurable background color, behind layer 1?
+
+    while (true) {
+        scanvideo_scanline_buffer_t *scanline_buffer = scanvideo_begin_scanline_generation(true);
+        draw_scanline_fragment(scanline_buffer);
+        scanvideo_end_scanline_generation(scanline_buffer);
+
+
+        // can we trigger some work after the last scanline of a frame?
+        // what is the best way to trigger work on core 1 during VSYNC? what work would we perform?
+        // updating the frame data makes sense...
+    }
+}
+
+
+int main(void) {
+    // scanvideo library wants specific clock rates (integer multiples of 25MHz?)
+    // pico-sdk/src/rp2_common/hardware_clocks/scripts/vcocalc.py 200
+    // Requested: 200.0 MHz
+    // Achieved: 200.0 MHz
+    // FBDIV: 100 (VCO = 1200 MHz)
+    // PD1: 6
+    // PD2: 1
+    //set_sys_clock_pll(1200000000, 6, 1);
+
+    // Requested: 201.4 MHz
+    // Achieved: 201.6 MHz
+    // FBDIV: 84 (VCO = 1008 MHz)
+    // PD1: 5
+    // PD2: 1
+    set_sys_clock_pll(1008000000, 5, 1);
+
+
+    // intialize stdio, send message so we can verify stdio + clock rates
+    stdio_init_all();
+    measure_freqs(); 
+
+    // launch all the video on core 1, so it isn't affected by USB handling on core 0
+    multicore_launch_core1(core1_func);
+
+    // wait for initialization of video to be complete
+    sem_acquire_blocking(&video_initted);
+
+    return 0;
+}
