@@ -4,9 +4,17 @@
 #include "pico/scanvideo.h"
 #include "pico/scanvideo/composable_scanline.h"
 
+static semaphore_t video_initted;
+
 void core1_func() {
-    // the video should be a bit programmable; i.e. being able to specify what video modes to use
+    // TODO the video should be a bit programmable; i.e. being able to specify what video modes to use
     // on which scanlines
+
+    // initialize video and interrupts on core 1
+    scanvideo_setup(&vga_mode_640x480_60);
+    scanvideo_timing_enable(true);
+    sem_release(&video_initted);
+
 
     while (1) {
 
@@ -20,5 +28,16 @@ void core1_func() {
         // updating the frame data makes sense...
     }
 
+}
+
+void init_video() {
+    // create a semaphore to be posted when video init is complete
+    sem_init(&video_initted, 0, 1);
+
+    // launch all the video on core 1, so it isn't affected by USB handling on core 0
+    multicore_launch_core1(core1_func);
+
+    // wait for initialization of video to be complete
+    sem_acquire_blocking(&video_initted);
 }
 
