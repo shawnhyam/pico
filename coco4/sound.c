@@ -21,9 +21,6 @@
 // it takes almost 0 time to generate the sound data, so hopefully adding an envelope will not be
 // a big deal.
 
-
-
-
 #define SINE_WAVE_TABLE_LEN 2048
 
 // 512 means we can generate sound during VBLANK, this is 21.33ms of sound at 24kHz

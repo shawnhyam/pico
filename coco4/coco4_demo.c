@@ -11,11 +11,12 @@
 // the other would have I2C and SPI buses -- but for now, we will try and
 // squeeze the whole thing onto a single RP2040
 
-
-
+#include <coco4/coco4.h>
+#include <stdio.h>
+#include "pico/stdlib.h"
 
 
 
 int main() {
-
+    boot_system();
 }

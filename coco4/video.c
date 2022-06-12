@@ -4,6 +4,14 @@
 #include "pico/scanvideo.h"
 #include "pico/scanvideo/composable_scanline.h"
 
+// TODOs
+// - mimic the display modes of the Motorola 6847... but possibly at 640x480 instead of 256x192
+//      - so 3200 bytes instead of 512 bytes of display memory
+//      - totally fixed character set (at least for now)
+// - recreate the boot screen on the CoCo
+//
+
+
 static semaphore_t video_initted;
 
 void core1_func() {
@@ -18,14 +26,16 @@ void core1_func() {
 
     while (1) {
 
-        // scanvideo_scanline_buffer_t *scanline_buffer = scanvideo_begin_scanline_generation(true);
+        scanvideo_scanline_buffer_t *scanline_buffer = scanvideo_begin_scanline_generation(true);
         // draw_scanline_fragment(scanline_buffer);
-        // scanvideo_end_scanline_generation(scanline_buffer);
+        scanvideo_end_scanline_generation(scanline_buffer);
 
 
         // can we trigger some work after the last scanline of a frame?
         // what is the best way to trigger work on core 1 during VSYNC? what work would we perform?
         // updating the frame data makes sense...
+
+        // could potentially change video modes, etc.
     }
 
 }

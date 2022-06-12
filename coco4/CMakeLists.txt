@@ -1,6 +1,7 @@
 add_library(coco4
 	coco4.c
 	video.c
+	sound.c
 )
 
 target_compile_definitions(coco4 PRIVATE
@@ -13,6 +14,7 @@ target_link_libraries(coco4
 	pico_stdlib
 	pico_multicore
 	pico_scanvideo_dpi
+	pico_audio_pwm
 	hardware_dma
 )
 target_include_directories(coco4 PUBLIC include)
