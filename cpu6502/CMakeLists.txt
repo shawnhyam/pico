@@ -1,5 +1,6 @@
 add_library(cpu6502
 	fake6502.c
+	minimal_computer.c
 )
 
 target_compile_definitions(cpu6502 PRIVATE
