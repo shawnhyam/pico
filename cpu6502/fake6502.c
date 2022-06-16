@@ -1,8 +1,5 @@
 #include "fake6502.h"
 
-#include <stdint.h>
-#include <stdio.h>
-
 // 6502 defines
 #define UNDOCUMENTED  // when this is defined, undocumented opcodes are handled.
                       // otherwise, they're simply treated as NOPs.
@@ -133,18 +130,15 @@ static void zp() {  // zero-page
     ea = (uint16_t)read6502((uint16_t)pc++);
 }
 
-static void zpx() {  // zero-page,X
-    ea = ((uint16_t)read6502((uint16_t)pc++) + (uint16_t)x) &
-         0xFF;  // zero-page wraparound
+static void zpx() {                                                  // zero-page,X
+    ea = ((uint16_t)read6502((uint16_t)pc++) + (uint16_t)x) & 0xFF;  // zero-page wraparound
 }
 
-static void zpy() {  // zero-page,Y
-    ea = ((uint16_t)read6502((uint16_t)pc++) + (uint16_t)y) &
-         0xFF;  // zero-page wraparound
+static void zpy() {                                                  // zero-page,Y
+    ea = ((uint16_t)read6502((uint16_t)pc++) + (uint16_t)y) & 0xFF;  // zero-page wraparound
 }
 
-static void
-rel() {  // relative for branch ops (8-bit immediate value, sign-extended)
+static void rel() {  // relative for branch ops (8-bit immediate value, sign-extended)
     reladdr = (uint16_t)read6502(pc++);
     if (reladdr & 0x80) reladdr |= 0xFF00;
 }
@@ -160,8 +154,7 @@ static void absx() {  // absolute,X
     startpage = ea & 0xFF00;
     ea += (uint16_t)x;
 
-    if (startpage !=
-        (ea & 0xFF00)) {  // one cycle penlty for page-crossing on some opcodes
+    if (startpage != (ea & 0xFF00)) {  // one cycle penlty for page-crossing on some opcodes
         penaltyaddr = 1;
     }
 
@@ -174,8 +167,7 @@ static void absy() {  // absolute,Y
     startpage = ea & 0xFF00;
     ea += (uint16_t)y;
 
-    if (startpage !=
-        (ea & 0xFF00)) {  // one cycle penlty for page-crossing on some opcodes
+    if (startpage != (ea & 0xFF00)) {  // one cycle penlty for page-crossing on some opcodes
         penaltyaddr = 1;
     }
 
@@ -184,11 +176,9 @@ static void absy() {  // absolute,Y
 
 static void ind() {  // indirect
     uint16_t eahelp, eahelp2;
-    eahelp =
-        (uint16_t)read6502(pc) | (uint16_t)((uint16_t)read6502(pc + 1) << 8);
+    eahelp = (uint16_t)read6502(pc) | (uint16_t)((uint16_t)read6502(pc + 1) << 8);
     eahelp2 =
-        (eahelp & 0xFF00) |
-        ((eahelp + 1) & 0x00FF);  // replicate 6502 page-boundary wraparound bug
+        (eahelp & 0xFF00) | ((eahelp + 1) & 0x00FF);  // replicate 6502 page-boundary wraparound bug
     ea = (uint16_t)read6502(eahelp) | ((uint16_t)read6502(eahelp2) << 8);
     pc += 2;
 }
@@ -197,21 +187,18 @@ static void indx() {  // (indirect,X)
     uint16_t eahelp;
     eahelp = (uint16_t)(((uint16_t)read6502(pc++) + (uint16_t)x) &
                         0xFF);  // zero-page wraparound for table pointer
-    ea = (uint16_t)read6502(eahelp & 0x00FF) |
-         ((uint16_t)read6502((eahelp + 1) & 0x00FF) << 8);
+    ea = (uint16_t)read6502(eahelp & 0x00FF) | ((uint16_t)read6502((eahelp + 1) & 0x00FF) << 8);
 }
 
 static void indy() {  // (indirect),Y
     uint16_t eahelp, eahelp2, startpage;
     eahelp = (uint16_t)read6502(pc++);
-    eahelp2 =
-        (eahelp & 0xFF00) | ((eahelp + 1) & 0x00FF);  // zero-page wraparound
+    eahelp2 = (eahelp & 0xFF00) | ((eahelp + 1) & 0x00FF);  // zero-page wraparound
     ea = (uint16_t)read6502(eahelp) | ((uint16_t)read6502(eahelp2) << 8);
     startpage = ea & 0xFF00;
     ea += (uint16_t)y;
 
-    if (startpage !=
-        (ea & 0xFF00)) {  // one cycle penlty for page-crossing on some opcodes
+    if (startpage != (ea & 0xFF00)) {  // one cycle penlty for page-crossing on some opcodes
         penaltyaddr = 1;
     }
 }

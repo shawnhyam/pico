@@ -105,6 +105,9 @@
  *                                                   *
  *****************************************************/
 
+#include <stdint.h>
+#include <stdio.h>
+
 void reset6502();
 void step6502();
 void exec6502(uint32_t tickcount);
