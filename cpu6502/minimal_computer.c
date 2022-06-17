@@ -23,9 +23,9 @@ uint32_t rnd(void) {
 
 uint8_t read6502(uint16_t address) {
     // printf("Read  %04x :  %02x\n", address, mem[address]);
-    if (address == 0xfe) {
-        return rnd() % 256;
-    }
+    // if (address == 0xfe) {
+    //     return rnd() % 256;
+    // }
     return mem[address];
 }
 
