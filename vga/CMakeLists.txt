@@ -3,8 +3,10 @@
 add_library(vga
 	vga.c
     mode0.c
+    mode1.c
     # modex.c
     modez.c
+    fonts.c
 )
 
 target_link_libraries(vga PRIVATE
