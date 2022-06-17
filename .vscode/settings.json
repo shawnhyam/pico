@@ -27,6 +27,7 @@
         "stdlib.h": "c",
         "composable_scanline.h": "c",
         "coco4.h": "c",
-        "multicore.h": "c"
+        "multicore.h": "c",
+        "scanvideo.h": "c"
     }
 }

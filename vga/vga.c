@@ -1,12 +1,19 @@
-#include <stdio.h>
 
-#include "hardware/clocks.h"
-#include "pico/multicore.h"
-#include "pico/scanvideo.h"
-#include "pico/scanvideo/composable_scanline.h"
-#include "pico/stdlib.h"
+#include "vga_inc.h"
 
-static semaphore_t video_initted;
+semaphore_t video_initted;
+
+void set_sys_clock_201_6mhz(void) {
+    // scanvideo library wants specific clock rates
+    // pico-sdk/src/rp2_common/hardware_clocks/scripts/vcocalc.py 201.4
+
+    // Requested: 201.4 MHz
+    // Achieved: 201.6 MHz
+    // FBDIV: 84 (VCO = 1008 MHz)
+    // PD1: 5
+    // PD2: 1
+    set_sys_clock_pll(1008000000, 5, 1);
+}
 
 // Palette
 // There is a palette of 256 entries, each entry contains a 16-bit color
@@ -72,7 +79,7 @@ const scanvideo_timing_t my_vga_mode_640x480_60 = {
 
 };
 
-const scanvideo_mode_t my_mode = {
+const scanvideo_mode_t vga_mode = {
 
     .default_timing = &my_vga_mode_640x480_60,
     .pio_program = &video_24mhz_composable,
@@ -110,149 +117,3 @@ void measure_freqs(void) {
 }
 
 uint16_t patterns[4][640];
-
-void draw_scanline_fragment(scanvideo_scanline_buffer_t *buffer) {
-    // figure out 1/32 of the color value
-    uint line_num = scanvideo_scanline_number(buffer->scanline_id);
-    uint frame_num = scanvideo_frame_number(buffer->scanline_id);
-
-    // uint32_t *dst32 = buffer->data;
-    // *dst32++ = COMPOSABLE_COLOR_RUN | 0xffff;
-    // *dst32++ = 637 | COMPOSABLE_RAW_1P_SKIP_ALIGN;
-    // *dst32++ = 0 | COMPOSABLE_EOL_ALIGN;
-
-    {
-        uint16_t *p = (uint16_t *)buffer->data;
-        if (line_num == 0 || line_num == 479) {
-            *p++ = COMPOSABLE_COLOR_RUN;
-            *p++ = PICO_SCANVIDEO_PIXEL_FROM_RGB5(31, 0, 0);
-            *p++ = 315;
-            *p++ = COMPOSABLE_RAW_1P;
-            *p++ = 0;
-            *p++ = COMPOSABLE_EOL_ALIGN;
-            // *p++ = 0;
-
-        } else {
-            *p++ = COMPOSABLE_RAW_1P;
-            *p++ = PICO_SCANVIDEO_PIXEL_FROM_RGB5(31, 0, 0);
-            *p++ = COMPOSABLE_COLOR_RUN;
-            *p++ = PICO_SCANVIDEO_PIXEL_FROM_RGB5(3, 3, 3);
-            *p++ = 315;
-            *p++ = COMPOSABLE_RAW_2P;
-            *p++ = PICO_SCANVIDEO_PIXEL_FROM_RGB5(31, 0, 0);
-            *p++ = 0;
-            *p++ = COMPOSABLE_EOL_SKIP_ALIGN;
-            *p++ = 0xffff;
-        }
-
-        buffer->data_used = ((uint32_t *)p) - buffer->data;
-    }
-
-    {
-        uint16_t *p = (uint16_t *)buffer->data2;
-        if (line_num == 16 || line_num == 463) {
-            *p++ = COMPOSABLE_COLOR_RUN;
-            *p++ = PICO_SCANVIDEO_ALPHA_MASK | PICO_SCANVIDEO_PIXEL_FROM_RGB5(0, 31, 0);
-            *p++ = 637;
-            *p++ = COMPOSABLE_RAW_1P;
-            *p++ = 0;
-            *p++ = COMPOSABLE_EOL_ALIGN;
-            // *p++ = 0;
-
-        } else {
-            *p++ = COMPOSABLE_RAW_1P;
-            *p++ = PICO_SCANVIDEO_ALPHA_MASK | PICO_SCANVIDEO_PIXEL_FROM_RGB8(255, 0, 0);
-            *p++ = COMPOSABLE_COLOR_RUN;
-            *p++ = PICO_SCANVIDEO_PIXEL_FROM_RGB8(0, 0, 0);
-            *p++ = 635;
-            *p++ = COMPOSABLE_RAW_2P;
-            *p++ = PICO_SCANVIDEO_PIXEL_FROM_RGB8(255, 0, 0);
-            *p++ = 0;
-            *p++ = COMPOSABLE_EOL_SKIP_ALIGN;
-            *p++ = 0xffff;
-        }
-        buffer->data2_used = ((uint32_t *)p) - buffer->data2;
-    }
-
-    {
-        uint16_t *p = (uint16_t *)buffer->data3;
-        if (line_num == 32 || line_num == 447) {
-            *p++ = COMPOSABLE_COLOR_RUN;
-            *p++ = PICO_SCANVIDEO_ALPHA_MASK | PICO_SCANVIDEO_PIXEL_FROM_RGB5(0, 0, 31);
-            *p++ = 637;
-            *p++ = COMPOSABLE_RAW_1P;
-            *p++ = 0;
-            *p++ = COMPOSABLE_EOL_ALIGN;
-            // *p++ = 0;
-
-        } else {
-            *p++ = COMPOSABLE_RAW_1P;
-            *p++ = PICO_SCANVIDEO_PIXEL_FROM_RGB8(255, 0, 0);
-            *p++ = COMPOSABLE_COLOR_RUN;
-            *p++ = PICO_SCANVIDEO_PIXEL_FROM_RGB8(0, 0, 0);
-            *p++ = 635;
-            *p++ = COMPOSABLE_RAW_2P;
-            *p++ = PICO_SCANVIDEO_PIXEL_FROM_RGB8(255, 0, 0);
-            *p++ = 0;
-            *p++ = COMPOSABLE_EOL_SKIP_ALIGN;
-            *p++ = 0xffff;
-        }
-        buffer->data3_used = ((uint32_t *)p) - buffer->data3;
-    }
-
-    buffer->status = SCANLINE_OK;
-}
-
-void core1_func() {
-    uint sys_clk = clock_get_hz(clk_sys);
-
-    // initialize video and interrupts on core 1
-    scanvideo_setup(&my_mode);
-    uint sys_clk2 = clock_get_hz(clk_sys);
-
-    scanvideo_timing_enable(true);
-    sem_release(&video_initted);
-
-    // how can we support a configurable background color, behind layer 1?
-
-    while (true) {
-        scanvideo_scanline_buffer_t *scanline_buffer = scanvideo_begin_scanline_generation(true);
-        draw_scanline_fragment(scanline_buffer);
-        scanvideo_end_scanline_generation(scanline_buffer);
-
-        // can we trigger some work after the last scanline of a frame?
-        // what is the best way to trigger work on core 1 during VSYNC? what
-        // work would we perform? updating the frame data makes sense...
-    }
-}
-
-int main(void) {
-    // scanvideo library wants specific clock rates (integer multiples of
-    // 25MHz?) pico-sdk/src/rp2_common/hardware_clocks/scripts/vcocalc.py 200
-    // Requested: 200.0 MHz
-    // Achieved: 200.0 MHz
-    // FBDIV: 100 (VCO = 1200 MHz)
-    // PD1: 6
-    // PD2: 1
-    // set_sys_clock_pll(1200000000, 6, 1);
-
-    // Requested: 201.4 MHz
-    // Achieved: 201.6 MHz
-    // FBDIV: 84 (VCO = 1008 MHz)
-    // PD1: 5
-    // PD2: 1
-    set_sys_clock_pll(1008000000, 5, 1);
-
-    // intialize stdio, send message so we can verify stdio + clock rates
-    stdio_init_all();
-    measure_freqs();
-
-    // launch all the video on core 1, so it isn't affected by USB handling on
-    // core 0
-    multicore_launch_core1(core1_func);
-
-    // wait for initialization of video to be complete
-    sem_acquire_blocking(&video_initted);
-
-    return 0;
-}
