@@ -10,6 +10,9 @@ uint8_t* modez_mem = mem + 0x200;
 uint8_t* mode0_charmem = mem + 0xf000;
 uint8_t* mode0_vidmem = mem + 0xf800;
 
+uint8_t* mode2_charmem = mem + 0xf000;
+uint8_t* mode2_vidmem = mem + 0xf800;
+
 uint32_t rnd(void) {
     int k, random = 0;
     volatile uint32_t* rnd_reg = (uint32_t*)(ROSC_BASE + ROSC_RANDOMBIT_OFFSET);

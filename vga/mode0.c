@@ -1,7 +1,7 @@
 #include "vga_inc.h"
 
-static uint32_t fgcolor32 = (PICO_SCANVIDEO_PIXEL_FROM_RGB8(0xff, 0xff, 0xff) << 16) |
-                            PICO_SCANVIDEO_PIXEL_FROM_RGB8(0xff, 0xff, 0xff);
+static const uint32_t fgcolor32 = (PICO_SCANVIDEO_PIXEL_FROM_RGB8(0xff, 0xff, 0xff) << 16) |
+                                  PICO_SCANVIDEO_PIXEL_FROM_RGB8(0xff, 0xff, 0xff);
 
 void mode0_draw_scanline_fragment(scanvideo_scanline_buffer_t *buffer) {
     uint line_num = scanvideo_scanline_number(buffer->scanline_id);
@@ -22,7 +22,6 @@ void mode0_draw_scanline_fragment(scanvideo_scanline_buffer_t *buffer) {
         uint8_t ch = *vmem++;
         // look up the pattern from character memory (8 bytes per character, 1 per line)
         uint8_t pattern = cmem[ch << 3];
-
         *dst32++ = pattern & 128 ? fgcolor32 : 0;
         *dst32++ = pattern & 64 ? fgcolor32 : 0;
         *dst32++ = pattern & 32 ? fgcolor32 : 0;

@@ -4,6 +4,7 @@ add_library(vga
 	vga.c
     mode0.c
     mode1.c
+    mode2.c
     # modex.c
     modez.c
     fonts.c

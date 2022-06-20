@@ -11,23 +11,35 @@
 #include "pico/stdlib.h"
 #include "vga/vga.h"
 
+void init_coco_charset() {
+    for (int i = 0; i < 32; i++) {
+        memcpy(mode2_charmem + 32 * 12, coco_font, 32 * 12);
+    }
+    for (int i = 0; i < 32; i++) {
+        memcpy(mode2_charmem, coco_font + 32 * 12, 32 * 12);
+    }
+    for (int i = 0; i < 32; i++) {
+        memcpy(mode2_charmem + 64 * 12, coco_font + 64 * 12, 32 * 12);
+    }
+
+    for (int i = 256; i < 32 * 16; i++) {
+        mode2_vidmem[i] = i % 256;
+    }
+}
+
 int main() {
     set_sys_clock_201_6mhz();
     stdio_init_all();
 
     measure_freqs();
 
-    memcpy(mode0_charmem, cerberus_chardefs, 2048);
-
-    for (int i = 0; i < 1200; i++) {
-        mode0_vidmem[i] = i % 256;
-    }
+    sem_init(&video_initted, 0, 1);
 
     // launch all the video on core 1
-    multicore_launch_core1(mode0_loop);
+    multicore_launch_core1(mode2_loop);
 
     // wait for initialization of video to be complete
-    // sem_acquire_blocking(&video_initted);
+    sem_acquire_blocking(&video_initted);
     sleep_ms(1000);
 
     getchar_timeout_us(0);
@@ -139,6 +151,9 @@ int main() {
          }
          */
 #endif
+
+    while (1) {
+    }
 
     reset6502();
 
